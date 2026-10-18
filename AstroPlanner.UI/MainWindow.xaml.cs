@@ -15,6 +15,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        AltitudePlot.UserInputProcessor.IsEnabled = false;
         DataContextChanged += OnDataContextChanged;
         Loaded += OnLoaded;
     }
@@ -87,15 +88,9 @@ public partial class MainWindow : Window
 
         if (points.Count > 0)
         {
-            // Eje X en horas decimales desde 18:00 hasta 30:00 (= 06:00 del día
-            // siguiente), para que la curva nocturna sea continua.
-            var x = points
-                .Select(p =>
-                {
-                    var hour = p.LocalTime.Hour + p.LocalTime.Minute / 60.0;
-                    return hour < 12 ? hour + 24 : hour;
-                })
-                .ToArray();
+            // Eje X con fechas reales para que el cambio de día muestre
+            // correctamente 23:00, 00:00, 01:00, etc.
+            var x = points.Select(p => p.LocalTime.ToOADate()).ToArray();
             var y = points.Select(p => p.AltitudeDegrees).ToArray();
 
             AltitudePlot.Plot.Add.Scatter(x, y);
@@ -107,8 +102,16 @@ public partial class MainWindow : Window
                 $"{viewModel.SelectedObject?.Id} — altitud (°)";
             AltitudePlot.Plot.Axes.Bottom.Label.Text = "Hora local";
             AltitudePlot.Plot.Axes.Left.Label.Text = "Altitud (°)";
+            var timeTicks = new ScottPlot.TickGenerators.DateTimeFixedInterval(
+                new ScottPlot.TickGenerators.TimeUnits.Hour(),
+                2,
+                null,
+                0,
+                dateTime => dateTime.Date.AddHours(18));
+            timeTicks.LabelFormatter = dateTime => dateTime.ToString("HH:mm");
+            AltitudePlot.Plot.Axes.Bottom.TickGenerator = timeTicks;
             AltitudePlot.Plot.Axes.SetLimitsY(-90, 90);
-            AltitudePlot.Plot.Axes.SetLimitsX(18, 30);
+            AltitudePlot.Plot.Axes.SetLimitsX(points[0].LocalTime.ToOADate(), points[^1].LocalTime.ToOADate());
         }
 
         AltitudePlot.Refresh();

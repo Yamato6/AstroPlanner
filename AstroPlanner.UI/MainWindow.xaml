@@ -28,6 +28,10 @@
             <Setter Property="Foreground" Value="White"/>
             <Setter Property="BorderBrush" Value="{StaticResource NightBorderBrush}"/>
         </Style>
+        <Style TargetType="CheckBox">
+            <Setter Property="Foreground" Value="#C9D7ED"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
         <Style x:Key="DarkComboBoxStyle" TargetType="ComboBox">
             <Setter Property="Foreground" Value="#EAF2FF"/>
             <Setter Property="Background" Value="#14233A"/>
