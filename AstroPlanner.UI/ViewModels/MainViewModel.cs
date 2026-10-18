@@ -58,6 +58,14 @@ public partial class MainViewModel : ObservableObject
 
     public string LocationSummary => $"{Latitude:0.####}°, {Longitude:0.####}°";
 
+    public string ActiveLocationName => Settings.IsManualLocation
+        ? "Coordenadas manuales"
+        : Settings.SelectedCity?.DisplayName ?? "Selecciona una ciudad";
+
+    public int CatalogCount => _allObjects.Count;
+
+    public int VisibleObjectsCount => _allObjects.Count(item => item.IsVisible);
+
     [ObservableProperty] private double latitude;
     [ObservableProperty] private double longitude;
     [ObservableProperty] private double elevation;
@@ -91,10 +99,22 @@ public partial class MainViewModel : ObservableObject
     /// Convierte una fecha/hora "de pared" elegida por el usuario (en la zona
     /// horaria del observador) a UTC, que es lo que requieren los cálculos.
     /// </summary>
-    private DateTime ToUtc(DateTime localWallClock) =>
-        TimeZoneInfo.ConvertTimeToUtc(
-            DateTime.SpecifyKind(localWallClock, DateTimeKind.Unspecified),
-            EffectiveTimeZone);
+    private DateTime ToUtc(DateTime localWallClock)
+    {
+        var wallClock = DateTime.SpecifyKind(localWallClock, DateTimeKind.Unspecified);
+        var timeZone = EffectiveTimeZone;
+
+        // Una hora inexistente ocurre durante el cambio a horario de verano.
+        // Se desplaza a la primera hora válida para mantener el cálculo usable.
+        if (timeZone.IsInvalidTime(wallClock))
+        {
+            wallClock = wallClock.AddHours(1);
+        }
+
+        // Para una hora ambigua (fin del horario de verano), ConvertTimeToUtc
+        // aplica de forma determinista el desplazamiento estándar de la zona.
+        return TimeZoneInfo.ConvertTimeToUtc(wallClock, timeZone);
+    }
 
     /// <summary>
     /// Serie de altitud a lo largo de la noche (18:00 → 06:00) en hora local
@@ -178,12 +198,16 @@ public partial class MainViewModel : ObservableObject
         Elevation = settings.ElevationMeters;
         MinimumAltitude = settings.MinimumAltitude;
         TimeZoneId = settings.TimeZoneId;
+        OnPropertyChanged(nameof(ActiveLocationName));
         // Los setters ya disparan RecalculateAndFilter.
     }
 
     private void RecalculateAndFilter()
     {
         OnPropertyChanged(nameof(LocationSummary));
+        OnPropertyChanged(nameof(ActiveLocationName));
+        OnPropertyChanged(nameof(CatalogCount));
+        OnPropertyChanged(nameof(VisibleObjectsCount));
         if (_allObjects.Count == 0 || Latitude is < -90 or > 90 || Longitude is < -180 or > 180)
         {
             Objects.Clear();
@@ -197,6 +221,8 @@ public partial class MainViewModel : ObservableObject
         {
             item.UpdatePosition(observer, utc, MinimumAltitude);
         }
+
+        OnPropertyChanged(nameof(VisibleObjectsCount));
 
         var filtered = _allObjects
             .Where(item =>
@@ -236,6 +262,10 @@ public partial class CelestialObjectRowViewModel : ObservableObject
     [ObservableProperty] private double altitudeDegrees;
     [ObservableProperty] private double azimuthDegrees;
     [ObservableProperty] private bool isVisible;
+
+    public string VisibilityStatus => IsVisible ? "Visible" : "No visible";
+
+    partial void OnIsVisibleChanged(bool value) => OnPropertyChanged(nameof(VisibilityStatus));
 
     public void UpdatePosition(ObserverLocation observer, DateTime utc, double threshold)
     {

@@ -1,0 +1,112 @@
+[
+  {
+    "id": "mexico-city",
+    "name": "Ciudad de México",
+    "state": "Ciudad de México",
+    "country": "México",
+    "latitudeDegrees": 19.4326,
+    "longitudeDegrees": -99.1332,
+    "elevationMeters": 2240,
+    "timeZoneId": "Central Standard Time (Mexico)"
+  },
+  {
+    "id": "guadalajara",
+    "name": "Guadalajara",
+    "state": "Jalisco",
+    "country": "México",
+    "latitudeDegrees": 20.6597,
+    "longitudeDegrees": -103.3496,
+    "elevationMeters": 1566,
+    "timeZoneId": "Central Standard Time (Mexico)"
+  },
+  {
+    "id": "monterrey",
+    "name": "Monterrey",
+    "state": "Nuevo León",
+    "country": "México",
+    "latitudeDegrees": 25.6866,
+    "longitudeDegrees": -100.3161,
+    "elevationMeters": 537,
+    "timeZoneId": "Central Standard Time (Mexico)"
+  },
+  {
+    "id": "puebla",
+    "name": "Puebla",
+    "state": "Puebla",
+    "country": "México",
+    "latitudeDegrees": 19.0414,
+    "longitudeDegrees": -98.2063,
+    "elevationMeters": 2147,
+    "timeZoneId": "Central Standard Time (Mexico)"
+  },
+  {
+    "id": "toluca",
+    "name": "Toluca",
+    "state": "Estado de México",
+    "country": "México",
+    "latitudeDegrees": 19.2826,
+    "longitudeDegrees": -99.6557,
+    "elevationMeters": 2660,
+    "timeZoneId": "Central Standard Time (Mexico)"
+  },
+  {
+    "id": "merida",
+    "name": "Mérida",
+    "state": "Yucatán",
+    "country": "México",
+    "latitudeDegrees": 20.9674,
+    "longitudeDegrees": -89.5926,
+    "elevationMeters": 10,
+    "timeZoneId": "Central Standard Time (Mexico)"
+  },
+  {
+    "id": "cancun",
+    "name": "Cancún",
+    "state": "Quintana Roo",
+    "country": "México",
+    "latitudeDegrees": 21.1619,
+    "longitudeDegrees": -86.8515,
+    "elevationMeters": 10,
+    "timeZoneId": "Eastern Standard Time (Mexico)"
+  },
+  {
+    "id": "oaxaca",
+    "name": "Oaxaca de Juárez",
+    "state": "Oaxaca",
+    "country": "México",
+    "latitudeDegrees": 17.0732,
+    "longitudeDegrees": -96.7266,
+    "elevationMeters": 1555,
+    "timeZoneId": "Central Standard Time (Mexico)"
+  },
+  {
+    "id": "tijuana",
+    "name": "Tijuana",
+    "state": "Baja California",
+    "country": "México",
+    "latitudeDegrees": 32.5149,
+    "longitudeDegrees": -117.0382,
+    "elevationMeters": 20,
+    "timeZoneId": "Pacific Standard Time (Mexico)"
+  },
+  {
+    "id": "hermosillo",
+    "name": "Hermosillo",
+    "state": "Sonora",
+    "country": "México",
+    "latitudeDegrees": 29.0729,
+    "longitudeDegrees": -110.9559,
+    "elevationMeters": 210,
+    "timeZoneId": "Mountain Standard Time (Mexico)"
+  },
+  {
+    "id": "aguascalientes",
+    "name": "Aguascalientes",
+    "state": "Aguascalientes",
+    "country": "México",
+    "latitudeDegrees": 21.8853,
+    "longitudeDegrees": -102.2916,
+    "elevationMeters": 1888,
+    "timeZoneId": "Central Standard Time (Mexico)"
+  }
+]

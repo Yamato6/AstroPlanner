@@ -8,6 +8,7 @@
 # Compilación y archivos generados de .NET
 [Bb]in/
 [Oo]bj/
+artifacts/
 TestResults/
 *.nupkg
 *.snupkg

@@ -8,16 +8,18 @@ namespace AstroPlanner.UI.Services;
 /// </summary>
 public sealed class ObserverSettings
 {
-    public double LatitudeDegrees { get; set; } = 40.4168;
-    public double LongitudeDegrees { get; set; } = -3.7038;
-    public double ElevationMeters { get; set; } = 667;
+    public string? CityId { get; set; } = "mexico-city";
+    public bool IsManualLocation { get; set; }
+    public double LatitudeDegrees { get; set; } = 19.4326;
+    public double LongitudeDegrees { get; set; } = -99.1332;
+    public double ElevationMeters { get; set; } = 2240;
 
     /// <summary>
     /// Id de zona horaria del sistema (ej. "Romance Standard Time").
     /// Se usa para convertir la fecha/hora local elegida por el usuario a UTC
     /// antes de los cálculos astronómicos.
     /// </summary>
-    public string TimeZoneId { get; set; } = TimeZoneInfo.Local.Id;
+    public string TimeZoneId { get; set; } = "Central Standard Time (Mexico)";
 
     /// <summary>Umbral de altitud mínimo (grados) para considerar un objeto visible.</summary>
     public double MinimumAltitude { get; set; } = 20;
