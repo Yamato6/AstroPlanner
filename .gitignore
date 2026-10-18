@@ -1,0 +1,33 @@
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Compilación y archivos generados de .NET
+[Bb]in/
+[Oo]bj/
+TestResults/
+*.nupkg
+*.snupkg
+
+# Cobertura y perfiles de rendimiento
+coverage/
+*.coverage
+*.coveragexml
+
+# Archivos temporales del sistema y del editor
+.DS_Store
+Thumbs.db
+*.tmp
+*.temp
+
+# Configuración local y secretos
+appsettings.Local.json
+appsettings.*.Local.json
+*.pfx
+*.publishsettings
+
+# Restos del proyecto antiguo que no forma parte de la solución actual
+/AstroPlanner/

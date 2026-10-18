@@ -1,0 +1,6 @@
+<Solution>
+  <Project Path="AstroPlanner.Core/AstroPlanner.Core.csproj" />
+  <Project Path="AstroPlanner.Data/AstroPlanner.Data.csproj" />
+  <Project Path="AstroPlanner.Tests/AstroPlanner.Tests.csproj" />
+  <Project Path="AstroPlanner.UI/AstroPlanner.UI.csproj" />
+</Solution>
