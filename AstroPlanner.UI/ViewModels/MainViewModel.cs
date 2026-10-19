@@ -36,6 +36,7 @@ public partial class MainViewModel : ObservableObject
     public SettingsViewModel Settings { get; }
 
     public ObservableCollection<CelestialObjectRowViewModel> Objects { get; } = [];
+    public ObservableCollection<CelestialObjectRowViewModel> ObservationPlan { get; } = [];
 
     public IReadOnlyList<string> TypeFilters { get; } =
     [
@@ -65,6 +66,9 @@ public partial class MainViewModel : ObservableObject
     public int CatalogCount => _allObjects.Count;
 
     public int VisibleObjectsCount => _allObjects.Count(item => item.IsVisible);
+
+    public CelestialObjectObservation? SelectedObservation => GetObservation(SelectedObject);
+    public bool HasSelectedObject => SelectedObject is not null;
 
     [ObservableProperty] private double latitude;
     [ObservableProperty] private double longitude;
@@ -144,6 +148,70 @@ public partial class MainViewModel : ObservableObject
         return points;
     }
 
+    public CelestialObjectObservation? GetObservation(CelestialObjectRowViewModel? item)
+    {
+        if (item is null || Latitude is < -90 or > 90 || Longitude is < -180 or > 180)
+        {
+            return null;
+        }
+
+        var observer = new ObserverLocation(Latitude, Longitude, Elevation);
+        var start = ObservationDateTime.Date.AddHours(18);
+        var samples = new List<(DateTime LocalTime, HorizontalCoordinates Coordinates)>();
+
+        for (var index = 0; index <= 48; index++)
+        {
+            var localTime = start.AddMinutes(index * 15);
+            var horizontal = CoordinateTransformer.ToHorizontal(
+                item.Coordinates,
+                observer,
+                ToUtc(localTime));
+            samples.Add((localTime, horizontal));
+        }
+
+        var current = samples.MinBy(sample => Math.Abs((sample.LocalTime - ObservationDateTime).TotalMinutes));
+        var maximum = samples.MaxBy(sample => sample.Coordinates.AltitudeDegrees);
+        var rise = FindCrossing(samples, 0, entering: true);
+        var visibilityStart = FindCrossing(samples, MinimumAltitude, entering: true);
+        var set = FindCrossing(samples, 0, entering: false);
+
+        return new CelestialObjectObservation
+        {
+            Object = item.Object,
+            Coordinates = current.Coordinates,
+            IsVisible = current.Coordinates.AltitudeDegrees >= MinimumAltitude,
+            RiseTimeLocal = rise,
+            VisibilityStartTimeLocal = visibilityStart,
+            BestObservationTimeLocal = maximum.LocalTime,
+            SetTimeLocal = set,
+            MaximumAltitudeDegrees = maximum.Coordinates.AltitudeDegrees
+        };
+    }
+
+    private static DateTime? FindCrossing(
+        IReadOnlyList<(DateTime LocalTime, HorizontalCoordinates Coordinates)> samples,
+        double altitude,
+        bool entering)
+    {
+        for (var index = 1; index < samples.Count; index++)
+        {
+            var previous = samples[index - 1];
+            var current = samples[index];
+            var previousDelta = previous.Coordinates.AltitudeDegrees - altitude;
+            var currentDelta = current.Coordinates.AltitudeDegrees - altitude;
+
+            if ((entering && previousDelta < 0 && currentDelta >= 0)
+                || (!entering && previousDelta >= 0 && currentDelta < 0))
+            {
+                var fraction = previousDelta / (previousDelta - currentDelta);
+                return previous.LocalTime.AddMinutes(
+                    (current.LocalTime - previous.LocalTime).TotalMinutes * fraction);
+            }
+        }
+
+        return null;
+    }
+
     [RelayCommand]
     private async Task LoadAsync()
     {
@@ -187,8 +255,34 @@ public partial class MainViewModel : ObservableObject
     partial void OnOnlyVisibleChanged(bool value) => RecalculateAndFilter();
     partial void OnTypeFilterChanged(string value) => RecalculateAndFilter();
     partial void OnConstellationFilterChanged(string value) => RecalculateAndFilter();
-    partial void OnSelectedObjectChanged(CelestialObjectRowViewModel? value) =>
+    partial void OnSelectedObjectChanged(CelestialObjectRowViewModel? value)
+    {
         OnPropertyChanged(nameof(SelectedObject));
+        OnPropertyChanged(nameof(SelectedObservation));
+        OnPropertyChanged(nameof(HasSelectedObject));
+    }
+
+    [RelayCommand]
+    private void AddSelectedToObservationPlan()
+    {
+        if (SelectedObject is not null && !ObservationPlan.Contains(SelectedObject))
+        {
+            ObservationPlan.Add(SelectedObject);
+            OnPropertyChanged(nameof(IsSelectedObjectInObservationPlan));
+        }
+    }
+
+    [RelayCommand]
+    private void RemoveSelectedFromObservationPlan()
+    {
+        if (SelectedObject is not null && ObservationPlan.Remove(SelectedObject))
+        {
+            OnPropertyChanged(nameof(IsSelectedObjectInObservationPlan));
+        }
+    }
+
+    public bool IsSelectedObjectInObservationPlan =>
+        SelectedObject is not null && ObservationPlan.Contains(SelectedObject);
 
     /// <summary>Aplica la configuración guardada en la pestaña de ajustes.</summary>
     private void OnSettingsSaved(Services.ObserverSettings settings)
@@ -243,6 +337,9 @@ public partial class MainViewModel : ObservableObject
         {
             SelectedObject = Objects.FirstOrDefault();
         }
+
+        OnPropertyChanged(nameof(SelectedObservation));
+        OnPropertyChanged(nameof(IsSelectedObjectInObservationPlan));
     }
 }
 
@@ -258,6 +355,7 @@ public partial class CelestialObjectRowViewModel : ObservableObject
     public CelestialObjectType Type => _item.Type;
     public double ApparentMagnitude => _item.ApparentMagnitude;
     public EquatorialCoordinates Coordinates => _item.Coordinates;
+    public CelestialObject Object => _item;
 
     [ObservableProperty] private double altitudeDegrees;
     [ObservableProperty] private double azimuthDegrees;

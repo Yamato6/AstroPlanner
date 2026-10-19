@@ -85,6 +85,11 @@ public partial class MainWindow : Window
     {
         var points = viewModel.GetNightAltitudeCurve();
         AltitudePlot.Plot.Clear();
+        AltitudePlot.Plot.FigureBackground.Color = ScottPlot.Color.FromHex("#172033");
+        AltitudePlot.Plot.DataBackground.Color = ScottPlot.Color.FromHex("#0F1B2D");
+        AltitudePlot.Plot.Axes.Color(ScottPlot.Color.FromHex("#8FA8C8"));
+        AltitudePlot.Plot.Grid.MajorLineColor = ScottPlot.Color.FromHex("#2A425F");
+        AltitudePlot.Plot.Grid.MinorLineColor = ScottPlot.Color.FromHex("#1B2D4A");
 
         if (points.Count > 0)
         {
@@ -93,15 +98,20 @@ public partial class MainWindow : Window
             var x = points.Select(p => p.LocalTime.ToOADate()).ToArray();
             var y = points.Select(p => p.AltitudeDegrees).ToArray();
 
-            AltitudePlot.Plot.Add.Scatter(x, y);
+            var altitudeLine = AltitudePlot.Plot.Add.Scatter(x, y);
+            altitudeLine.LegendText = "Altitud";
+            altitudeLine.Color = ScottPlot.Color.FromHex("#55C7E8");
+            altitudeLine.LineWidth = 2;
             var thresholdLine = AltitudePlot.Plot.Add.HorizontalLine(viewModel.MinimumAltitude);
             thresholdLine.LineColor = ScottPlot.Color.FromHex("#FFB45E");
             thresholdLine.LineWidth = 2;
+            thresholdLine.LegendText = "Altitud mínima";
 
             AltitudePlot.Plot.Axes.Title.Label.Text =
-                $"{viewModel.SelectedObject?.Id} — altitud (°)";
+                $"{viewModel.SelectedObject?.Id} — {viewModel.SelectedObject?.CommonName}";
             AltitudePlot.Plot.Axes.Bottom.Label.Text = "Hora local";
             AltitudePlot.Plot.Axes.Left.Label.Text = "Altitud (°)";
+            AltitudePlot.Plot.ShowLegend();
             var timeTicks = new ScottPlot.TickGenerators.DateTimeFixedInterval(
                 new ScottPlot.TickGenerators.TimeUnits.Hour(),
                 2,

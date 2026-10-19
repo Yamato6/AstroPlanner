@@ -15,6 +15,54 @@
         <SolidColorBrush x:Key="NightTextBrush" Color="#D7E3F4"/>
         <SolidColorBrush x:Key="NightMutedTextBrush" Color="#8FA8C8"/>
         <SolidColorBrush x:Key="AccentBrush" Color="#55C7E8"/>
+        <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
+        <Style x:Key="DarkTabItemStyle" TargetType="TabItem">
+            <Setter Property="Foreground" Value="#B8C7DD"/>
+            <Setter Property="Background" Value="#14233A"/>
+            <Setter Property="BorderBrush" Value="#36557D"/>
+            <Setter Property="BorderThickness" Value="1,1,1,0"/>
+            <Setter Property="Padding" Value="14,7"/>
+            <Setter Property="Margin" Value="0,0,4,0"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TabItem">
+                        <Border x:Name="TabBorder"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="5,5,0,0"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter ContentSource="Header"
+                                              HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"
+                                              TextElement.Foreground="{TemplateBinding Foreground}"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="TabBorder" Property="Background" Value="#1B2D4A"/>
+                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="#5A85B8"/>
+                                <Setter Property="Foreground" Value="#EAF2FF"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="TabBorder" Property="Background" Value="#203A5F"/>
+                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="#5FA8FF"/>
+                                <Setter Property="Foreground" Value="#FFFFFF"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.45"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="DarkTabControlStyle" TargetType="TabControl">
+            <Setter Property="Background" Value="#0F1B2D"/>
+            <Setter Property="BorderBrush" Value="#36557D"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="Padding" Value="0"/>
+        </Style>
         <Style TargetType="TextBlock">
             <Setter Property="Foreground" Value="{StaticResource NightTextBrush}"/>
         </Style>
@@ -229,17 +277,20 @@
         </UniformGrid>
 
         <!-- Planificador principal -->
-        <Grid Grid.Row="2">
-            <Grid Margin="0,0,0,0">
+        <TabControl Grid.Row="2" Margin="16,12,16,16"
+                    Style="{StaticResource DarkTabControlStyle}">
+            <TabItem Header="Planificador" Style="{StaticResource DarkTabItemStyle}">
+            <Grid Margin="12">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="2*"/>
                         <ColumnDefinition Width="3*"/>
                     </Grid.ColumnDefinitions>
 
                     <!-- Panel izquierdo: filtros + tabla -->
-                    <Border Grid.Column="0" Margin="0,0,7,0" Padding="8"
+                    <Border Grid.Column="0" Margin="0,0,12,0" Padding="1"
+                            Background="#0F1B2D"
                             BorderBrush="{StaticResource NightBorderBrush}" BorderThickness="1" CornerRadius="6">
-                        <Grid>
+                        <Grid Margin="8">
                             <Grid.RowDefinitions>
                                 <RowDefinition Height="Auto"/>
                                 <RowDefinition Height="Auto"/>
@@ -287,7 +338,8 @@
 
                             <!-- Tabla de resultados -->
                             <DataGrid Grid.Row="2" AutoGenerateColumns="False" CanUserAddRows="False"
-                                      IsReadOnly="True" EnableRowVirtualization="True"
+                                      IsReadOnly="True" HeadersVisibility="Column"
+                                      EnableRowVirtualization="True"
                                       Background="#0F1B2D" Foreground="#EAF2FF"
                                       BorderThickness="0"
                                       RowBackground="#0F1B2D" AlternatingRowBackground="#14233A"
@@ -297,6 +349,12 @@
                                       ItemsSource="{Binding Objects}"
                                       SelectedItem="{Binding SelectedObject}">
                                 <DataGrid.Resources>
+                                     <Style TargetType="ScrollBar">
+                                         <Setter Property="Background" Value="#0F1B2D"/>
+                                         <Setter Property="Foreground" Value="#36557D"/>
+                                         <Setter Property="Width" Value="12"/>
+                                         <Setter Property="MinWidth" Value="12"/>
+                                     </Style>
                                     <Style TargetType="DataGridColumnHeader">
                                         <Setter Property="Background" Value="#1B2D4A"/>
                                         <Setter Property="Foreground" Value="#EAF2FF"/>
@@ -346,11 +404,13 @@
                                     <DataGridTextColumn Header="Estado" Binding="{Binding VisibilityStatus}" Width="88" ElementStyle="{StaticResource StatusCellStyle}"/>
                                 </DataGrid.Columns>
                             </DataGrid>
+
                         </Grid>
                     </Border>
 
                     <!-- Panel derecho: gráfico de altitud -->
-                    <Border Grid.Column="1" Margin="7,0,0,0" Padding="8"
+                    <Border Grid.Column="1" Padding="8"
+                            Background="#0F1B2D"
                             BorderBrush="{StaticResource NightBorderBrush}" BorderThickness="1" CornerRadius="6">
                         <Grid>
                             <Grid.RowDefinitions>
@@ -363,6 +423,93 @@
                         </Grid>
                     </Border>
                 </Grid>
-        </Grid>
+            </TabItem>
+
+            <TabItem Header="Detalle del objeto" Style="{StaticResource DarkTabItemStyle}">
+                <Grid Margin="16">
+                    <TextBlock Text="Selecciona un objeto en el Planificador para consultar sus detalles."
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Foreground="{StaticResource NightMutedTextBrush}"
+                               FontSize="16">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasSelectedObject}" Value="False">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <Border Padding="18" Background="{StaticResource NightPanelBrush}"
+                            BorderBrush="{StaticResource NightBorderBrush}" BorderThickness="1" CornerRadius="6">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Setter Property="Visibility" Value="Visible"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding HasSelectedObject}" Value="False">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <Grid DataContext="{Binding SelectedObservation}">
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="Auto"/>
+                                <RowDefinition Height="*"/>
+                            </Grid.RowDefinitions>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="*"/>
+                            </Grid.ColumnDefinitions>
+                            <StackPanel Grid.ColumnSpan="3" Orientation="Horizontal">
+                                <TextBlock FontSize="24" FontWeight="SemiBold" Text="{Binding Object.Id}"/>
+                                <TextBlock Margin="10,0,0,0" FontSize="24" Text="{Binding Object.CommonName}"/>
+                            </StackPanel>
+                            <TextBlock Grid.Row="1" Grid.ColumnSpan="3" Margin="0,6,0,18"
+                                       Foreground="{StaticResource NightMutedTextBrush}"
+                                       Text="{Binding Object.Type, StringFormat=Tipo: {0}}"/>
+                            <StackPanel Grid.Row="2" Grid.Column="0">
+                                <TextBlock Foreground="{StaticResource NightMutedTextBrush}" Text="Información astronómica"/>
+                                <TextBlock Margin="0,6,0,0" Text="{Binding Object.Constellation, StringFormat=Constelación: {0}}"/>
+                                <TextBlock Text="{Binding Object.ApparentMagnitude, StringFormat=Magnitud: {0:0.0}}"/>
+                                <TextBlock Text="{Binding MaximumAltitudeDegrees, StringFormat=Altitud máxima: {0:0.0}°}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="2" Grid.Column="1">
+                                <TextBlock Foreground="{StaticResource NightMutedTextBrush}" Text="Posición actual"/>
+                                <TextBlock Margin="0,6,0,0" Text="{Binding Coordinates.AltitudeDegrees, StringFormat=Altitud: {0:0.0}°}"/>
+                                <TextBlock Text="{Binding Coordinates.AzimuthDegrees, StringFormat=Azimut: {0:0.0}°}"/>
+                                <TextBlock Text="{Binding VisibilityStatus, StringFormat=Estado: {0}}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Row="2" Grid.Column="2">
+                                <TextBlock Foreground="{StaticResource NightMutedTextBrush}" Text="Eventos de la noche"/>
+                                <TextBlock Margin="0,6,0,0" Text="{Binding RiseTimeLocal, StringFormat=Salida: {0:HH\:mm}}"/>
+                                <TextBlock Text="{Binding VisibilityStartTimeLocal, StringFormat=Supera el umbral: {0:HH\:mm}}"/>
+                                <TextBlock Text="{Binding BestObservationTimeLocal, StringFormat=Culminación: {0:HH\:mm}}"/>
+                                <TextBlock Text="{Binding SetTimeLocal, StringFormat=Puesta: {0:HH\:mm}}"/>
+                                <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
+                                    <Button Style="{StaticResource PrimaryButtonStyle}" Content="Agregar al plan"
+                                            Command="{Binding DataContext.AddSelectedToObservationPlanCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                    <Button Style="{StaticResource SecondaryButtonStyle}" Content="Quitar del plan"
+                                            Command="{Binding DataContext.RemoveSelectedFromObservationPlanCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                            IsEnabled="{Binding DataContext.IsSelectedObjectInObservationPlan, RelativeSource={RelativeSource AncestorType=Window}}"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Mi plan" Style="{StaticResource DarkTabItemStyle}">
+                <Grid Margin="16">
+                    <TextBlock Text="El plan de observación estará disponible en la siguiente versión."
+                               HorizontalAlignment="Center" VerticalAlignment="Center"
+                               Foreground="{StaticResource NightMutedTextBrush}" FontSize="16"/>
+                </Grid>
+            </TabItem>
+        </TabControl>
     </Grid>
 </Window>
