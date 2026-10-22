@@ -204,6 +204,67 @@
                 </Trigger>
             </Style.Triggers>
         </Style>
+        <Style x:Key="NightDataGridStyle" TargetType="DataGrid">
+            <Setter Property="AutoGenerateColumns" Value="False"/>
+            <Setter Property="CanUserAddRows" Value="False"/>
+            <Setter Property="IsReadOnly" Value="True"/>
+            <Setter Property="HeadersVisibility" Value="Column"/>
+            <Setter Property="EnableRowVirtualization" Value="True"/>
+            <Setter Property="Background" Value="#0F1B2D"/>
+            <Setter Property="Foreground" Value="#EAF2FF"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="RowBackground" Value="#0F1B2D"/>
+            <Setter Property="AlternatingRowBackground" Value="#14233A"/>
+            <Setter Property="AlternationCount" Value="2"/>
+            <Setter Property="GridLinesVisibility" Value="Horizontal"/>
+            <Setter Property="HorizontalGridLinesBrush" Value="#2B3F5E"/>
+            <Setter Property="VerticalGridLinesBrush" Value="Transparent"/>
+            <Style.Resources>
+                <Style TargetType="ScrollBar">
+                    <Setter Property="Background" Value="#0F1B2D"/>
+                    <Setter Property="Foreground" Value="#36557D"/>
+                    <Setter Property="Width" Value="12"/>
+                    <Setter Property="MinWidth" Value="12"/>
+                </Style>
+                <Style TargetType="DataGridColumnHeader">
+                    <Setter Property="Background" Value="#1B2D4A"/>
+                    <Setter Property="Foreground" Value="#EAF2FF"/>
+                    <Setter Property="FontWeight" Value="SemiBold"/>
+                    <Setter Property="BorderBrush" Value="#2B3F5E"/>
+                    <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                    <Setter Property="Padding" Value="8,7"/>
+                </Style>
+                <Style TargetType="DataGridCell">
+                    <Setter Property="Foreground" Value="#EAF2FF"/>
+                    <Setter Property="BorderBrush" Value="#2B3F5E"/>
+                    <Setter Property="BorderThickness" Value="0,0,0,1"/>
+                    <Setter Property="Padding" Value="6,4"/>
+                </Style>
+                <Style TargetType="DataGridRow">
+                    <Setter Property="Background" Value="#0F1B2D"/>
+                    <Setter Property="Foreground" Value="#EAF2FF"/>
+                    <Style.Triggers>
+                        <Trigger Property="ItemsControl.AlternationIndex" Value="1">
+                            <Setter Property="Background" Value="#14233A"/>
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter Property="Background" Value="#203A5F"/>
+                        </Trigger>
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter Property="Background" Value="#274C77"/>
+                            <Setter Property="Foreground" Value="White"/>
+                        </Trigger>
+                    </Style.Triggers>
+                </Style>
+            </Style.Resources>
+        </Style>
+        <Style x:Key="NumericCellStyle" TargetType="TextBlock">
+            <Setter Property="TextAlignment" Value="Right"/>
+        </Style>
+        <Style x:Key="StatusCellStyle" TargetType="TextBlock">
+            <Setter Property="TextAlignment" Value="Center"/>
+            <Setter Property="Foreground" Value="#62E6A7"/>
+        </Style>
     </Window.Resources>
     <Grid Margin="16">
         <Grid.RowDefinitions>
@@ -337,62 +398,9 @@
                             </StackPanel>
 
                             <!-- Tabla de resultados -->
-                            <DataGrid Grid.Row="2" AutoGenerateColumns="False" CanUserAddRows="False"
-                                      IsReadOnly="True" HeadersVisibility="Column"
-                                      EnableRowVirtualization="True"
-                                      Background="#0F1B2D" Foreground="#EAF2FF"
-                                      BorderThickness="0"
-                                      RowBackground="#0F1B2D" AlternatingRowBackground="#14233A"
-                                      AlternationCount="2" GridLinesVisibility="Horizontal"
-                                      HorizontalGridLinesBrush="#2B3F5E"
-                                      VerticalGridLinesBrush="Transparent"
+                            <DataGrid Grid.Row="2" Style="{StaticResource NightDataGridStyle}"
                                       ItemsSource="{Binding Objects}"
                                       SelectedItem="{Binding SelectedObject}">
-                                <DataGrid.Resources>
-                                     <Style TargetType="ScrollBar">
-                                         <Setter Property="Background" Value="#0F1B2D"/>
-                                         <Setter Property="Foreground" Value="#36557D"/>
-                                         <Setter Property="Width" Value="12"/>
-                                         <Setter Property="MinWidth" Value="12"/>
-                                     </Style>
-                                    <Style TargetType="DataGridColumnHeader">
-                                        <Setter Property="Background" Value="#1B2D4A"/>
-                                        <Setter Property="Foreground" Value="#EAF2FF"/>
-                                        <Setter Property="FontWeight" Value="SemiBold"/>
-                                        <Setter Property="BorderBrush" Value="#2B3F5E"/>
-                                        <Setter Property="BorderThickness" Value="0,0,0,1"/>
-                                        <Setter Property="Padding" Value="8,7"/>
-                                    </Style>
-                                    <Style TargetType="DataGridCell">
-                                        <Setter Property="Foreground" Value="#EAF2FF"/>
-                                        <Setter Property="BorderBrush" Value="#2B3F5E"/>
-                                        <Setter Property="BorderThickness" Value="0,0,0,1"/>
-                                        <Setter Property="Padding" Value="6,4"/>
-                                    </Style>
-                                    <Style TargetType="DataGridRow">
-                                        <Setter Property="Background" Value="#0F1B2D"/>
-                                        <Setter Property="Foreground" Value="#EAF2FF"/>
-                                        <Style.Triggers>
-                                            <Trigger Property="ItemsControl.AlternationIndex" Value="1">
-                                                <Setter Property="Background" Value="#14233A"/>
-                                            </Trigger>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter Property="Background" Value="#203A5F"/>
-                                            </Trigger>
-                                            <Trigger Property="IsSelected" Value="True">
-                                                <Setter Property="Background" Value="#274C77"/>
-                                                <Setter Property="Foreground" Value="White"/>
-                                            </Trigger>
-                                        </Style.Triggers>
-                                    </Style>
-                                    <Style x:Key="NumericCellStyle" TargetType="TextBlock">
-                                        <Setter Property="TextAlignment" Value="Right"/>
-                                    </Style>
-                                    <Style x:Key="StatusCellStyle" TargetType="TextBlock">
-                                        <Setter Property="TextAlignment" Value="Center"/>
-                                        <Setter Property="Foreground" Value="#62E6A7"/>
-                                    </Style>
-                                </DataGrid.Resources>
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="55"/>
                                     <DataGridTextColumn Header="Nombre" Binding="{Binding CommonName}" Width="*"/>
@@ -504,10 +512,55 @@
             </TabItem>
 
             <TabItem Header="Mi plan" Style="{StaticResource DarkTabItemStyle}">
-                <Grid Margin="16">
-                    <TextBlock Text="El plan de observación estará disponible en la siguiente versión."
+                <Grid Margin="12">
+                    <TextBlock Text="Tu plan está vacío. Agrega objetos desde la pestaña Detalle del objeto."
                                HorizontalAlignment="Center" VerticalAlignment="Center"
-                               Foreground="{StaticResource NightMutedTextBrush}" FontSize="16"/>
+                               Foreground="{StaticResource NightMutedTextBrush}" FontSize="16">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="Visibility" Value="Collapsed"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ObservationPlan.Count}" Value="0">
+                                        <Setter Property="Visibility" Value="Visible"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                    <Border Padding="8" Background="#0F1B2D"
+                            BorderBrush="{StaticResource NightBorderBrush}" BorderThickness="1" CornerRadius="6">
+                        <Border.Style>
+                            <Style TargetType="Border">
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ObservationPlan.Count}" Value="0">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </Border.Style>
+                        <DataGrid Style="{StaticResource NightDataGridStyle}"
+                                  ItemsSource="{Binding ObservationPlan}">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="55"/>
+                                <DataGridTextColumn Header="Nombre" Binding="{Binding CommonName}" Width="*"/>
+                                <DataGridTextColumn Header="Constelación" Binding="{Binding Constellation}" Width="110"/>
+                                <DataGridTextColumn Header="Tipo" Binding="{Binding Type}" Width="120"/>
+                                <DataGridTextColumn Header="Magnitud" Binding="{Binding ApparentMagnitude, StringFormat=F1}" Width="75" ElementStyle="{StaticResource NumericCellStyle}"/>
+                                <DataGridTextColumn Header="Altitud" Binding="{Binding AltitudeDegrees, StringFormat=F1}" Width="70" ElementStyle="{StaticResource NumericCellStyle}"/>
+                                <DataGridTextColumn Header="Azimut" Binding="{Binding AzimuthDegrees, StringFormat=F1}" Width="70" ElementStyle="{StaticResource NumericCellStyle}"/>
+                                <DataGridTextColumn Header="Estado" Binding="{Binding VisibilityStatus}" Width="88" ElementStyle="{StaticResource StatusCellStyle}"/>
+                                <DataGridTemplateColumn Width="90">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <Button Style="{StaticResource SecondaryButtonStyle}" Content="Quitar"
+                                                    Command="{Binding DataContext.RemoveFromObservationPlanCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                    CommandParameter="{Binding}"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Border>
                 </Grid>
             </TabItem>
         </TabControl>

@@ -3,21 +3,29 @@ using System.IO;
 using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
-using AstroPlanner.Core.Algorithms;
 using AstroPlanner.Core.Interfaces;
 using AstroPlanner.Core.Models;
+using AstroPlanner.UI.Services;
 
 namespace AstroPlanner.UI.ViewModels;
 
 public partial class MainViewModel : ObservableObject
 {
     private readonly ICelestialRepository _repository;
+    private readonly IAstronomyService _astronomy;
+    private readonly IObservationPlanService _planService;
     private readonly List<CelestialObjectRowViewModel> _allObjects = [];
     private IReadOnlyList<string> _constellationFilters = [""];
 
-    public MainViewModel(ICelestialRepository repository, SettingsViewModel settings)
+    public MainViewModel(
+        ICelestialRepository repository,
+        IAstronomyService astronomy,
+        IObservationPlanService planService,
+        SettingsViewModel settings)
     {
         _repository = repository;
+        _astronomy = astronomy;
+        _planService = planService;
         Settings = settings;
 
         // La configuración persistida manda sobre los valores en runtime.
@@ -121,6 +129,15 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>
+    /// Inicio (18:00 local) de la noche que contiene <see cref="ObservationDateTime"/>.
+    /// Antes del mediodía se considera parte de la noche que empezó el día anterior,
+    /// para que una hora como 02:00 caiga dentro de su propia noche.
+    /// </summary>
+    private DateTime NightStartLocal =>
+        (ObservationDateTime.Hour < 12 ? ObservationDateTime.Date.AddDays(-1) : ObservationDateTime.Date)
+            .AddHours(18);
+
+    /// <summary>
     /// Serie de altitud a lo largo de la noche (18:00 → 06:00) en hora local
     /// del observador, para dibujar la curva de tránsito.
     /// </summary>
@@ -132,8 +149,8 @@ public partial class MainViewModel : ObservableObject
         }
 
         var observer = new ObserverLocation(Latitude, Longitude, Elevation);
-        var start = ObservationDateTime.Date.AddHours(18);
-        var coordinates = SelectedObject.Coordinates;
+        var start = NightStartLocal;
+        var celestialObject = SelectedObject.Object;
         var points = new List<(DateTime LocalTime, double AltitudeDegrees)>();
 
         // 25 puntos: 18:00, 18:30, ..., 06:00 (12 horas cada 30 min).
@@ -141,7 +158,7 @@ public partial class MainViewModel : ObservableObject
         {
             var localTime = start.AddMinutes(index * 30);
             var utcTime = ToUtc(localTime);
-            var horizontal = CoordinateTransformer.ToHorizontal(coordinates, observer, utcTime);
+            var horizontal = _astronomy.GetHorizontal(celestialObject, observer, utcTime);
             points.Add((localTime, horizontal.AltitudeDegrees));
         }
 
@@ -156,20 +173,18 @@ public partial class MainViewModel : ObservableObject
         }
 
         var observer = new ObserverLocation(Latitude, Longitude, Elevation);
-        var start = ObservationDateTime.Date.AddHours(18);
+        var start = NightStartLocal;
         var samples = new List<(DateTime LocalTime, HorizontalCoordinates Coordinates)>();
 
         for (var index = 0; index <= 48; index++)
         {
             var localTime = start.AddMinutes(index * 15);
-            var horizontal = CoordinateTransformer.ToHorizontal(
-                item.Coordinates,
-                observer,
-                ToUtc(localTime));
+            var horizontal = _astronomy.GetHorizontal(item.Object, observer, ToUtc(localTime));
             samples.Add((localTime, horizontal));
         }
 
-        var current = samples.MinBy(sample => Math.Abs((sample.LocalTime - ObservationDateTime).TotalMinutes));
+        // Posición en el instante exacto elegido, igual que en la tabla.
+        var current = _astronomy.GetHorizontal(item.Object, observer, ToUtc(ObservationDateTime));
         var maximum = samples.MaxBy(sample => sample.Coordinates.AltitudeDegrees);
         var rise = FindCrossing(samples, 0, entering: true);
         var visibilityStart = FindCrossing(samples, MinimumAltitude, entering: true);
@@ -178,8 +193,8 @@ public partial class MainViewModel : ObservableObject
         return new CelestialObjectObservation
         {
             Object = item.Object,
-            Coordinates = current.Coordinates,
-            IsVisible = current.Coordinates.AltitudeDegrees >= MinimumAltitude,
+            Coordinates = current,
+            IsVisible = current.AltitudeDegrees >= MinimumAltitude,
             RiseTimeLocal = rise,
             VisibilityStartTimeLocal = visibilityStart,
             BestObservationTimeLocal = maximum.LocalTime,
@@ -227,6 +242,7 @@ public partial class MainViewModel : ObservableObject
             ConstellationFilters =
                 [.. _allObjects.Select(o => o.Constellation).Distinct().OrderBy(c => c)];
 
+            RestoreObservationPlan();
             RecalculateAndFilter();
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or JsonException)
@@ -242,7 +258,8 @@ public partial class MainViewModel : ObservableObject
         OnlyVisible = false;
         TypeFilter = "All";
         ConstellationFilter = "";
-        MinimumAltitude = 20;
+        // Vuelve al umbral de la configuración guardada, no a un valor fijo.
+        MinimumAltitude = Settings.MinimumAltitude;
         RecalculateAndFilter();
     }
 
@@ -269,15 +286,46 @@ public partial class MainViewModel : ObservableObject
         {
             ObservationPlan.Add(SelectedObject);
             OnPropertyChanged(nameof(IsSelectedObjectInObservationPlan));
+            SaveObservationPlan();
         }
     }
 
     [RelayCommand]
-    private void RemoveSelectedFromObservationPlan()
+    private void RemoveSelectedFromObservationPlan() => RemoveFromObservationPlan(SelectedObject);
+
+    [RelayCommand]
+    private void RemoveFromObservationPlan(CelestialObjectRowViewModel? item)
     {
-        if (SelectedObject is not null && ObservationPlan.Remove(SelectedObject))
+        if (item is not null && ObservationPlan.Remove(item))
         {
             OnPropertyChanged(nameof(IsSelectedObjectInObservationPlan));
+            SaveObservationPlan();
+        }
+    }
+
+    /// <summary>Reconstruye el plan guardado a partir de los ids del catálogo.</summary>
+    private void RestoreObservationPlan()
+    {
+        ObservationPlan.Clear();
+        foreach (var id in _planService.Load())
+        {
+            var item = _allObjects.FirstOrDefault(o => o.Id == id);
+            if (item is not null && !ObservationPlan.Contains(item))
+            {
+                ObservationPlan.Add(item);
+            }
+        }
+    }
+
+    private void SaveObservationPlan()
+    {
+        try
+        {
+            _planService.Save(ObservationPlan.Select(item => item.Id));
+        }
+        catch (IOException ex)
+        {
+            ErrorMessage = $"No se pudo guardar el plan: {ex.Message}";
         }
     }
 
@@ -313,7 +361,7 @@ public partial class MainViewModel : ObservableObject
 
         foreach (var item in _allObjects)
         {
-            item.UpdatePosition(observer, utc, MinimumAltitude);
+            item.UpdatePosition(_astronomy.GetHorizontal(item.Object, observer, utc), MinimumAltitude);
         }
 
         OnPropertyChanged(nameof(VisibleObjectsCount));
@@ -365,9 +413,8 @@ public partial class CelestialObjectRowViewModel : ObservableObject
 
     partial void OnIsVisibleChanged(bool value) => OnPropertyChanged(nameof(VisibilityStatus));
 
-    public void UpdatePosition(ObserverLocation observer, DateTime utc, double threshold)
+    public void UpdatePosition(HorizontalCoordinates coordinates, double threshold)
     {
-        var coordinates = CoordinateTransformer.ToHorizontal(_item.Coordinates, observer, utc);
         AltitudeDegrees = coordinates.AltitudeDegrees;
         AzimuthDegrees = coordinates.AzimuthDegrees;
         IsVisible = AltitudeDegrees >= threshold;

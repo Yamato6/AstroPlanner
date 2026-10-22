@@ -35,6 +35,7 @@ public partial class App : Application
 
         // Persistencia de configuración de la UI
         services.AddSingleton<ISettingsService, JsonSettingsService>();
+        services.AddSingleton<IObservationPlanService, JsonObservationPlanService>();
 
         // ViewModels
         services.AddSingleton<SettingsViewModel>();

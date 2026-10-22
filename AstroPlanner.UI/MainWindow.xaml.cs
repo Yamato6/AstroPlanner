@@ -52,7 +52,12 @@ public partial class MainWindow : Window
         {
             Owner = this
         };
-        window.ShowDialog();
+
+        // Cancelar o cerrar con la X no debe dejar cambios a medias en memoria.
+        if (window.ShowDialog() != true)
+        {
+            _viewModel.Settings.RevertChanges();
+        }
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)

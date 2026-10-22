@@ -33,7 +33,7 @@ public partial class SettingsViewModel : ObservableObject
     public IReadOnlyList<TimeZoneInfo> AvailableTimeZones { get; } =
         TimeZoneInfo.GetSystemTimeZones().ToList();
 
-public IReadOnlyList<City> Cities { get; private set; } = Array.Empty<City>();
+    public IReadOnlyList<City> Cities { get; private set; } = Array.Empty<City>();
 
     [ObservableProperty] private double latitude;
     [ObservableProperty] private double longitude;
@@ -157,6 +157,9 @@ public IReadOnlyList<City> Cities { get; private set; } = Array.Empty<City>();
         HasError = false;
     }
 
+    /// <summary>Descarta los cambios no guardados y vuelve a la configuración persistida.</summary>
+    public void RevertChanges() => Apply(_settingsService.Load());
+
     /// <summary>Aplica una configuración a las propiedades observables.</summary>
     public void Apply(Services.ObserverSettings settings)
     {
@@ -173,7 +176,11 @@ public IReadOnlyList<City> Cities { get; private set; } = Array.Empty<City>();
         Elevation = settings.ElevationMeters;
         TimeZoneId = settings.TimeZoneId;
         MinimumAltitude = settings.MinimumAltitude;
-        SelectedCity = null;
+        // Si el catálogo de ciudades ya está cargado se recupera la ciudad guardada;
+        // si no, LoadCitiesAsync la seleccionará al cargarlo.
+        SelectedCity = settings.IsManualLocation
+            ? null
+            : Cities.FirstOrDefault(city => city.Id == settings.CityId);
         OnPropertyChanged(nameof(SelectedTimeZone));
     }
 }
