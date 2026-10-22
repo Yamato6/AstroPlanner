@@ -239,6 +239,16 @@
                     <Setter Property="BorderBrush" Value="#2B3F5E"/>
                     <Setter Property="BorderThickness" Value="0,0,0,1"/>
                     <Setter Property="Padding" Value="6,4"/>
+                    <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                    <Style.Triggers>
+                        <!-- Sin esto WPF usa el color de selección inactiva del sistema
+                             (casi blanco) cuando la tabla no tiene el foco. -->
+                        <Trigger Property="IsSelected" Value="True">
+                            <Setter Property="Background" Value="#274C77"/>
+                            <Setter Property="Foreground" Value="White"/>
+                            <Setter Property="BorderBrush" Value="#2B3F5E"/>
+                        </Trigger>
+                    </Style.Triggers>
                 </Style>
                 <Style TargetType="DataGridRow">
                     <Setter Property="Background" Value="#0F1B2D"/>
@@ -289,7 +299,50 @@
                 </StackPanel>
                 <StackPanel Grid.Column="1" Margin="0,0,14,0">
                     <TextBlock Foreground="#B8C7E0" Text="Fecha y hora local"/>
-                    <TextBox Width="150" Text="{Binding ObservationDateTime, StringFormat=dd/MM/yyyy HH:mm, UpdateSourceTrigger=PropertyChanged}"/>
+                    <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
+                        <DatePicker Width="124" VerticalContentAlignment="Center"
+                                    Language="es-MX" SelectedDateFormat="Short"
+                                    Background="#0F1B2D" BorderBrush="#36557D" Foreground="White"
+                                    SelectedDate="{Binding ObservationDate}">
+                            <DatePicker.Resources>
+                                <Style TargetType="DatePickerTextBox">
+                                    <Setter Property="Background" Value="#0F1B2D"/>
+                                    <Setter Property="Foreground" Value="White"/>
+                                    <Setter Property="CaretBrush" Value="White"/>
+                                    <Setter Property="VerticalContentAlignment" Value="Center"/>
+                                    <!-- La plantilla por defecto ignora Background y pinta la caja en blanco. -->
+                                    <Setter Property="Template">
+                                        <Setter.Value>
+                                            <ControlTemplate TargetType="DatePickerTextBox">
+                                                <Border Background="{TemplateBinding Background}" Padding="4,2">
+                                                    <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center"/>
+                                                </Border>
+                                            </ControlTemplate>
+                                        </Setter.Value>
+                                    </Setter>
+                                </Style>
+                            </DatePicker.Resources>
+                        </DatePicker>
+                        <ComboBox Style="{StaticResource DarkComboBoxStyle}"
+                                  ItemContainerStyle="{StaticResource DarkComboBoxItemStyle}"
+                                  Width="58" Margin="6,0,0,0" MaxDropDownHeight="240"
+                                  ToolTip="Hora"
+                                  ItemsSource="{Binding Hours}" ItemStringFormat="00"
+                                  SelectedItem="{Binding ObservationHour}"/>
+                        <TextBlock Text=":" Foreground="White" Margin="3,0" VerticalAlignment="Center"/>
+                        <ComboBox Style="{StaticResource DarkComboBoxStyle}"
+                                  ItemContainerStyle="{StaticResource DarkComboBoxItemStyle}"
+                                  Width="58" MaxDropDownHeight="240"
+                                  ToolTip="Minuto"
+                                  ItemsSource="{Binding Minutes}" ItemStringFormat="00"
+                                  SelectedItem="{Binding ObservationMinute}"/>
+                        <Button Style="{StaticResource SecondaryButtonStyle}" Margin="6,0,0,0"
+                                Content="−1 h" ToolTip="Una hora antes"
+                                Command="{Binding ShiftObservationTimeCommand}" CommandParameter="-60"/>
+                        <Button Style="{StaticResource SecondaryButtonStyle}"
+                                Content="+1 h" ToolTip="Una hora después"
+                                Command="{Binding ShiftObservationTimeCommand}" CommandParameter="60"/>
+                    </StackPanel>
                 </StackPanel>
                 <StackPanel Grid.Column="2" Margin="0,0,14,0">
                     <TextBlock Foreground="#B8C7E0" Text="Zona horaria"/>
@@ -343,12 +396,14 @@
             <TabItem Header="Planificador" Style="{StaticResource DarkTabItemStyle}">
             <Grid Margin="12">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="2*"/>
-                        <ColumnDefinition Width="3*"/>
+                        <!-- La tabla necesita ~650 px para mostrar todas sus columnas. -->
+                        <ColumnDefinition Width="3*" MinWidth="460"/>
+                        <ColumnDefinition Width="12"/>
+                        <ColumnDefinition Width="2*" MinWidth="320"/>
                     </Grid.ColumnDefinitions>
 
                     <!-- Panel izquierdo: filtros + tabla -->
-                    <Border Grid.Column="0" Margin="0,0,12,0" Padding="1"
+                    <Border Grid.Column="0" Padding="1"
                             Background="#0F1B2D"
                             BorderBrush="{StaticResource NightBorderBrush}" BorderThickness="1" CornerRadius="6">
                         <Grid Margin="8">
@@ -359,13 +414,9 @@
                             </Grid.RowDefinitions>
 
                             <!-- Fila de filtros -->
-                            <Grid Grid.Row="0" Margin="0,0,0,8">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto"/>
-                                    <ColumnDefinition Width="*"/>
-                                    <ColumnDefinition Width="Auto"/>
-                                </Grid.ColumnDefinitions>
-                                <StackPanel Grid.Column="0" Orientation="Horizontal">
+                            <!-- WrapPanel: si no caben en una línea, los filtros pasan a la siguiente. -->
+                            <WrapPanel Grid.Row="0" Margin="0,0,0,2">
+                                <StackPanel Orientation="Horizontal" Margin="0,0,12,6">
                                     <TextBlock VerticalAlignment="Center" Margin="0,0,6,0" Foreground="#C9D7ED" FontWeight="SemiBold" Text="Tipo"/>
                                     <ComboBox Style="{StaticResource DarkComboBoxStyle}"
                                               ItemContainerStyle="{StaticResource DarkComboBoxItemStyle}"
@@ -379,14 +430,14 @@
                                               ItemsSource="{Binding ConstellationFilters}"
                                               SelectedItem="{Binding ConstellationFilter}"/>
                                 </StackPanel>
-                                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                                <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
                                     <TextBlock VerticalAlignment="Center" Margin="0,0,6,0" Foreground="#C9D7ED" FontWeight="SemiBold" Text="Alt. mín. (°)"/>
-                                    <TextBox Width="50" Margin="0,0,12,0"
+                                    <TextBox Width="50" Margin="0,0,12,0" VerticalContentAlignment="Center"
                                              Text="{Binding MinimumAltitude, UpdateSourceTrigger=PropertyChanged}"/>
                                     <CheckBox VerticalAlignment="Center" Content="Solo visibles"
                                               IsChecked="{Binding OnlyVisible}"/>
                                 </StackPanel>
-                            </Grid>
+                            </WrapPanel>
 
                             <!-- Estado / errores -->
                             <StackPanel Grid.Row="1" Margin="0,0,0,6">
@@ -416,8 +467,13 @@
                         </Grid>
                     </Border>
 
+                    <!-- Divisor arrastrable entre tabla y gráfico -->
+                    <GridSplitter Grid.Column="1" Width="12" HorizontalAlignment="Stretch"
+                                  Background="Transparent" Cursor="SizeWE"
+                                  ResizeBehavior="PreviousAndNext" ToolTip="Arrastra para cambiar el ancho"/>
+
                     <!-- Panel derecho: gráfico de altitud -->
-                    <Border Grid.Column="1" Padding="8"
+                    <Border Grid.Column="2" Padding="8"
                             Background="#0F1B2D"
                             BorderBrush="{StaticResource NightBorderBrush}" BorderThickness="1" CornerRadius="6">
                         <Grid>

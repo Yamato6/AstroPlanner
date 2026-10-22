@@ -91,6 +91,40 @@ public partial class MainViewModel : ObservableObject
     [ObservableProperty] private bool isBusy;
     [ObservableProperty] private string? errorMessage;
 
+    public IReadOnlyList<int> Hours { get; } = [.. Enumerable.Range(0, 24)];
+    public IReadOnlyList<int> Minutes { get; } = [.. Enumerable.Range(0, 60)];
+
+    /// <summary>Parte de fecha de <see cref="ObservationDateTime"/>, para el selector de calendario.</summary>
+    public DateTime ObservationDate
+    {
+        get => ObservationDateTime.Date;
+        set => ObservationDateTime = value.Date + ObservationDateTime.TimeOfDay;
+    }
+
+    /// <summary>Hora (0-23) de <see cref="ObservationDateTime"/>.</summary>
+    public int ObservationHour
+    {
+        get => ObservationDateTime.Hour;
+        set => ObservationDateTime = ObservationDateTime.Date.AddHours(value).AddMinutes(ObservationDateTime.Minute);
+    }
+
+    /// <summary>Minuto (0-59) de <see cref="ObservationDateTime"/>.</summary>
+    public int ObservationMinute
+    {
+        get => ObservationDateTime.Minute;
+        set => ObservationDateTime = ObservationDateTime.Date.AddHours(ObservationDateTime.Hour).AddMinutes(value);
+    }
+
+    /// <summary>Desplaza la hora de observación los minutos indicados (p. ej. ±60).</summary>
+    [RelayCommand]
+    private void ShiftObservationTime(string minutes)
+    {
+        if (int.TryParse(minutes, out var delta))
+        {
+            ObservationDateTime = ObservationDateTime.AddMinutes(delta);
+        }
+    }
+
     /// <summary>Zona horaria efectiva (la configurada, con reserva a la local).</summary>
     private TimeZoneInfo EffectiveTimeZone
     {
@@ -266,7 +300,13 @@ public partial class MainViewModel : ObservableObject
     partial void OnLatitudeChanged(double value) => RecalculateAndFilter();
     partial void OnLongitudeChanged(double value) => RecalculateAndFilter();
     partial void OnElevationChanged(double value) => RecalculateAndFilter();
-    partial void OnObservationDateTimeChanged(DateTime value) => RecalculateAndFilter();
+    partial void OnObservationDateTimeChanged(DateTime value)
+    {
+        OnPropertyChanged(nameof(ObservationDate));
+        OnPropertyChanged(nameof(ObservationHour));
+        OnPropertyChanged(nameof(ObservationMinute));
+        RecalculateAndFilter();
+    }
     partial void OnMinimumAltitudeChanged(double value) => RecalculateAndFilter();
     partial void OnTimeZoneIdChanged(string value) => RecalculateAndFilter();
     partial void OnOnlyVisibleChanged(bool value) => RecalculateAndFilter();
