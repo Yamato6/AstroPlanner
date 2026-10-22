@@ -1,6 +1,8 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel.DataAnnotations;
+using System.Globalization;
 using System.IO;
+using System.Text;
 using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -11,27 +13,37 @@ using AstroPlanner.UI.Services;
 
 namespace AstroPlanner.UI.ViewModels;
 
-public partial class MainViewModel : ObservableValidator
+public partial class MainViewModel : ObservableValidator, IDisposable
 {
+    /// <summary>Cada cuánto se actualiza la hora en el modo en vivo.</summary>
+    public static readonly TimeSpan LiveUpdateInterval = TimeSpan.FromMinutes(1);
+
     private readonly ICelestialRepository _repository;
     private readonly IAstronomyService _astronomy;
     private readonly IObservationPlanService _planService;
     private readonly IAppLogger _logger;
+    private readonly TimeProvider _time;
+    private SynchronizationContext? _uiContext;
     private readonly List<CelestialObjectRowViewModel> _allObjects = [];
     private IReadOnlyList<string> _constellationFilters = [""];
     private CelestialObjectObservation? _selectedObservation;
+    private ITimer? _liveTimer;
+    private bool _isApplyingLiveTime;
+    private bool _isInitializing;
 
     public MainViewModel(
         ICelestialRepository repository,
         IAstronomyService astronomy,
         IObservationPlanService planService,
         IAppLogger logger,
-        SettingsViewModel settings)
+        SettingsViewModel settings,
+        TimeProvider? timeProvider = null)
     {
         _repository = repository;
         _astronomy = astronomy;
         _planService = planService;
         _logger = logger;
+        _time = timeProvider ?? TimeProvider.System;
         Settings = settings;
 
         // La configuración persistida manda sobre los valores en runtime. Se
@@ -42,8 +54,9 @@ public partial class MainViewModel : ObservableValidator
         Longitude = settings.Longitude;
         Elevation = settings.Elevation;
         MinimumAltitude = settings.MinimumAltitude;
+        MaximumMagnitude = settings.MaximumMagnitude;
         TimeZoneId = settings.TimeZoneId;
-        ObservationDateTime = DateTime.Now;
+        ObservationDateTime = NowInObserverZone;
         TypeFilter = "All";
         _isInitializing = false;
         RecalculateAndFilter();
@@ -51,13 +64,13 @@ public partial class MainViewModel : ObservableValidator
         settings.SettingsSaved += OnSettingsSaved;
     }
 
-    private bool _isInitializing;
-
     /// <summary>Pestaña de Configuración, compartida con la vista.</summary>
     public SettingsViewModel Settings { get; }
 
     public ObservableCollection<CelestialObjectRowViewModel> Objects { get; } = [];
-    public ObservableCollection<CelestialObjectRowViewModel> ObservationPlan { get; } = [];
+
+    /// <summary>Mi plan, ordenado por hora de culminación (orden de observación).</summary>
+    public ObservableCollection<PlanItemViewModel> ObservationPlan { get; } = [];
 
     public IReadOnlyList<string> TypeFilters { get; } =
     [
@@ -110,6 +123,17 @@ public partial class MainViewModel : ObservableValidator
     [Range(0, 90, ErrorMessage = "La altitud mínima debe estar entre 0 y 90°.")]
     private double minimumAltitude;
 
+    /// <summary>Oculta los objetos más débiles que esta magnitud.</summary>
+    [ObservableProperty, NotifyDataErrorInfo]
+    [Range(-2, 20, ErrorMessage = "La magnitud máxima debe estar entre -2 y 20.")]
+    private double maximumMagnitude = 12;
+
+    /// <summary>Texto de búsqueda por id, nombre o constelación.</summary>
+    [ObservableProperty] private string searchText = "";
+
+    /// <summary>Modo en vivo: la hora sigue al reloj y se actualiza cada minuto.</summary>
+    [ObservableProperty] private bool isLive;
+
     /// <summary>Aviso de entrada inválida; mientras exista, la tabla conserva el último cálculo válido.</summary>
     [ObservableProperty] private string? validationMessage;
     [ObservableProperty] private string timeZoneId = TimeZoneInfo.Local.Id;
@@ -119,6 +143,12 @@ public partial class MainViewModel : ObservableValidator
     [ObservableProperty] private CelestialObjectRowViewModel? selectedObject;
     [ObservableProperty] private bool isBusy;
     [ObservableProperty] private string? errorMessage;
+
+    /// <summary>Resultado de la última exportación del plan.</summary>
+    [ObservableProperty] private string? planStatusMessage;
+
+    /// <summary>Cambia cada vez que hay que redibujar la carta del cielo.</summary>
+    [ObservableProperty] private int skyMapVersion;
 
     public IReadOnlyList<int> Hours { get; } = [.. Enumerable.Range(0, 24)];
     public IReadOnlyList<int> Minutes { get; } = [.. Enumerable.Range(0, 60)];
@@ -152,6 +182,77 @@ public partial class MainViewModel : ObservableValidator
         {
             ObservationDateTime = ObservationDateTime.AddMinutes(delta);
         }
+    }
+
+    /// <summary>
+    /// Hora actual en la zona horaria del observador (no la del PC: si se
+    /// planifica para otra ciudad, "ahora" es la hora de allí).
+    /// </summary>
+    private DateTime NowInObserverZone
+    {
+        get
+        {
+            var now = TimeZoneInfo.ConvertTime(_time.GetUtcNow(), EffectiveTimeZone).DateTime;
+            return new DateTime(now.Ticks - now.Ticks % TimeSpan.TicksPerSecond, DateTimeKind.Unspecified);
+        }
+    }
+
+    [RelayCommand]
+    private void SetNow() => ObservationDateTime = NowInObserverZone;
+
+    partial void OnIsLiveChanged(bool value)
+    {
+        _liveTimer?.Dispose();
+        _liveTimer = null;
+
+        if (value)
+        {
+            // El temporizador dispara en otro hilo; sus cambios se devuelven al
+            // hilo de la interfaz a través de este contexto. Se captura aquí (el
+            // modo en vivo se activa desde la interfaz) y no en el constructor:
+            // el ViewModel puede crearse antes de que exista el contexto de WPF,
+            // y entonces el cambio llegaría desde otro hilo y tumbaría la app.
+            _uiContext = SynchronizationContext.Current;
+            ApplyLiveTime();
+            _liveTimer = _time.CreateTimer(_ => OnLiveTimerTick(), null, LiveUpdateInterval, LiveUpdateInterval);
+        }
+    }
+
+    private void OnLiveTimerTick()
+    {
+        if (_uiContext is null || SynchronizationContext.Current == _uiContext)
+        {
+            ApplyLiveTime();
+        }
+        else
+        {
+            _uiContext.Post(_ => ApplyLiveTime(), null);
+        }
+    }
+
+    private void ApplyLiveTime()
+    {
+        if (!IsLive)
+        {
+            return;
+        }
+
+        _isApplyingLiveTime = true;
+        try
+        {
+            ObservationDateTime = NowInObserverZone;
+        }
+        finally
+        {
+            _isApplyingLiveTime = false;
+        }
+    }
+
+    public void Dispose()
+    {
+        _liveTimer?.Dispose();
+        _liveTimer = null;
+        GC.SuppressFinalize(this);
     }
 
     /// <summary>Zona horaria efectiva (la configurada, con reserva a la local).</summary>
@@ -217,6 +318,32 @@ public partial class MainViewModel : ObservableValidator
         _ => null
     };
 
+    /// <summary>Resumen de la noche para la cabecera del plan impreso.</summary>
+    public string PlanSummaryText
+    {
+        get
+        {
+            var night = ObservationNight.GetNightStartLocal(ObservationDateTime);
+            var parts = new List<string>
+            {
+                $"Noche del {night:dd/MM/yyyy} al {night.AddDays(1):dd/MM/yyyy}",
+                ActiveLocationName
+            };
+            if (_night is { HasAstronomicalDarkness: true })
+            {
+                parts.Add($"Noche oscura {DarkNightText}");
+            }
+
+            if (_moon is not null)
+            {
+                parts.Add($"Luna {MoonIlluminationText} ({DescribeMoonPhase(_moon.IlluminatedFraction, _moon.IsWaxing)})");
+            }
+
+            parts.Add($"Altitud mínima {MinimumAltitude:0}°");
+            return string.Join(" · ", parts);
+        }
+    }
+
     /// <summary>Nombre de la fase lunar a partir de la fracción iluminada.</summary>
     public static string DescribeMoonPhase(double illuminatedFraction, bool isWaxing) => illuminatedFraction switch
     {
@@ -251,6 +378,7 @@ public partial class MainViewModel : ObservableValidator
         OnPropertyChanged(nameof(MoonIlluminationText));
         OnPropertyChanged(nameof(MoonDetailText));
         OnPropertyChanged(nameof(SkyBanner));
+        OnPropertyChanged(nameof(PlanSummaryText));
     }
 
     /// <summary>
@@ -273,6 +401,11 @@ public partial class MainViewModel : ObservableValidator
         if (double.IsNaN(MinimumAltitude) || MinimumAltitude is < 0 or > 90)
         {
             return "La altitud mínima debe estar entre 0 y 90°.";
+        }
+
+        if (double.IsNaN(MaximumMagnitude) || MaximumMagnitude is < -2 or > 20)
+        {
+            return "La magnitud máxima debe estar entre -2 y 20.";
         }
 
         return null;
@@ -362,6 +495,53 @@ public partial class MainViewModel : ObservableValidator
         OnPropertyChanged(nameof(SelectedObservation));
     }
 
+    // ─── Carta del cielo ────────────────────────────────────────────────
+
+    /// <summary>
+    /// Objetos sobre el horizonte que pasan los filtros, para la carta del cielo.
+    /// </summary>
+    public IReadOnlyList<SkyMapPoint> GetSkyMapPoints()
+    {
+        var planIds = ObservationPlan.Select(item => item.Id).ToHashSet();
+        return Objects
+            .Where(item => item.AltitudeDegrees > 0)
+            .Select(item => new SkyMapPoint(
+                item.Id,
+                item.AltitudeDegrees,
+                item.AzimuthDegrees,
+                item.ApparentMagnitude,
+                item.IsVisible,
+                planIds.Contains(item.Id),
+                ReferenceEquals(item, SelectedObject)))
+            .ToList();
+    }
+
+    /// <summary>
+    /// Selecciona el objeto de la carta más cercano a (x, y), en unidades de la
+    /// proyección (grados), si está a menos de <paramref name="maximumDistance"/>.
+    /// </summary>
+    public bool SelectNearestOnSkyMap(double x, double y, double maximumDistance = 6)
+    {
+        var nearest = GetSkyMapPoints()
+            .Select(point => (point.Id, Distance: Math.Sqrt(
+                Math.Pow(point.Position.X - x, 2) + Math.Pow(point.Position.Y - y, 2))))
+            .Where(candidate => candidate.Distance <= maximumDistance)
+            .OrderBy(candidate => candidate.Distance)
+            .FirstOrDefault();
+
+        if (nearest.Id is null)
+        {
+            return false;
+        }
+
+        SelectedObject = Objects.First(item => item.Id == nearest.Id);
+        return true;
+    }
+
+    private void InvalidateSkyMap() => SkyMapVersion++;
+
+    // ─── Carga y filtros ────────────────────────────────────────────────
+
     [RelayCommand]
     private async Task LoadAsync()
     {
@@ -394,7 +574,9 @@ public partial class MainViewModel : ObservableValidator
         OnlyVisible = false;
         TypeFilter = "All";
         ConstellationFilter = "";
-        // Vuelve al umbral de la configuración guardada, no a un valor fijo.
+        SearchText = "";
+        // Vuelve a los valores de la configuración guardada, no a valores fijos.
+        MaximumMagnitude = Settings.MaximumMagnitude;
         MinimumAltitude = Settings.MinimumAltitude;
         RecalculateAndFilter();
     }
@@ -402,59 +584,94 @@ public partial class MainViewModel : ObservableValidator
     partial void OnLatitudeChanged(double value) => RecalculateAndFilter();
     partial void OnLongitudeChanged(double value) => RecalculateAndFilter();
     partial void OnElevationChanged(double value) => RecalculateAndFilter();
+
     partial void OnObservationDateTimeChanged(DateTime value)
     {
+        // Elegir una hora a mano sale del modo en vivo.
+        if (IsLive && !_isApplyingLiveTime)
+        {
+            IsLive = false;
+        }
+
         OnPropertyChanged(nameof(ObservationDate));
         OnPropertyChanged(nameof(ObservationHour));
         OnPropertyChanged(nameof(ObservationMinute));
         RecalculateAndFilter();
     }
+
     partial void OnMinimumAltitudeChanged(double value) => RecalculateAndFilter();
-    partial void OnTimeZoneIdChanged(string value) => RecalculateAndFilter();
-    partial void OnOnlyVisibleChanged(bool value) => RecalculateAndFilter();
-    partial void OnTypeFilterChanged(string value) => RecalculateAndFilter();
-    partial void OnConstellationFilterChanged(string value) => RecalculateAndFilter();
+
+    partial void OnTimeZoneIdChanged(string value)
+    {
+        // En vivo, "ahora" depende de la zona horaria del observador.
+        if (IsLive)
+        {
+            ApplyLiveTime();
+        }
+
+        RecalculateAndFilter();
+    }
+
+    // Estos filtros no cambian posiciones: solo se vuelve a filtrar la tabla.
+    partial void OnOnlyVisibleChanged(bool value) => ApplyFilter();
+    partial void OnTypeFilterChanged(string value) => ApplyFilter();
+    partial void OnConstellationFilterChanged(string value) => ApplyFilter();
+    partial void OnSearchTextChanged(string value) => ApplyFilter();
+    partial void OnMaximumMagnitudeChanged(double value) => ApplyFilter();
+
     partial void OnSelectedObjectChanged(CelestialObjectRowViewModel? value)
     {
         OnPropertyChanged(nameof(HasSelectedObject));
         OnPropertyChanged(nameof(IsSelectedObjectInObservationPlan));
         UpdateSelectedObservation();
+        InvalidateSkyMap();
     }
+
+    // ─── Mi plan ────────────────────────────────────────────────────────
 
     [RelayCommand]
     private void AddSelectedToObservationPlan()
     {
-        if (SelectedObject is not null && !ObservationPlan.Contains(SelectedObject))
+        if (SelectedObject is not null && !IsSelectedObjectInObservationPlan)
         {
-            ObservationPlan.Add(SelectedObject);
+            ObservationPlan.Add(new PlanItemViewModel(SelectedObject, "", OnPlanNoteChanged));
+            UpdatePlanSchedule();
             OnPropertyChanged(nameof(IsSelectedObjectInObservationPlan));
             SaveObservationPlan();
+            InvalidateSkyMap();
         }
     }
 
     [RelayCommand]
-    private void RemoveSelectedFromObservationPlan() => RemoveFromObservationPlan(SelectedObject);
+    private void RemoveSelectedFromObservationPlan() =>
+        RemoveFromObservationPlan(ObservationPlan.FirstOrDefault(item => item.Row == SelectedObject));
 
     [RelayCommand]
-    private void RemoveFromObservationPlan(CelestialObjectRowViewModel? item)
+    private void RemoveFromObservationPlan(PlanItemViewModel? item)
     {
         if (item is not null && ObservationPlan.Remove(item))
         {
             OnPropertyChanged(nameof(IsSelectedObjectInObservationPlan));
             SaveObservationPlan();
+            InvalidateSkyMap();
         }
     }
+
+    public bool IsSelectedObjectInObservationPlan =>
+        SelectedObject is not null && ObservationPlan.Any(item => item.Row == SelectedObject);
+
+    private void OnPlanNoteChanged(PlanItemViewModel item) => SaveObservationPlan();
 
     /// <summary>Reconstruye el plan guardado a partir de los ids del catálogo.</summary>
     private void RestoreObservationPlan()
     {
         ObservationPlan.Clear();
-        foreach (var id in _planService.Load())
+        foreach (var entry in _planService.Load())
         {
-            var item = _allObjects.FirstOrDefault(o => o.Id == id);
-            if (item is not null && !ObservationPlan.Contains(item))
+            var row = _allObjects.FirstOrDefault(o => o.Id == entry.Id);
+            if (row is not null && ObservationPlan.All(item => item.Row != row))
             {
-                ObservationPlan.Add(item);
+                ObservationPlan.Add(new PlanItemViewModel(row, entry.Note, OnPlanNoteChanged));
             }
         }
     }
@@ -463,7 +680,7 @@ public partial class MainViewModel : ObservableValidator
     {
         try
         {
-            _planService.Save(ObservationPlan.Select(item => item.Id));
+            _planService.Save(ObservationPlan.Select(item => new ObservationPlanEntry(item.Id, item.Note)));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -472,8 +689,62 @@ public partial class MainViewModel : ObservableValidator
         }
     }
 
-    public bool IsSelectedObjectInObservationPlan =>
-        SelectedObject is not null && ObservationPlan.Contains(SelectedObject);
+    /// <summary>
+    /// Calcula la culminación de cada objeto del plan en la noche actual y
+    /// ordena el plan por esa hora, que es el orden en que conviene observar.
+    /// </summary>
+    private void UpdatePlanSchedule()
+    {
+        if (_night is null || GetInputError() is not null || ObservationPlan.Count == 0)
+        {
+            return;
+        }
+
+        var observer = new ObserverLocation(Latitude, Longitude, Elevation);
+        foreach (var item in ObservationPlan)
+        {
+            var events = _astronomy.GetNightEvents(
+                item.Row.Object,
+                observer,
+                _night.WindowStartLocal,
+                _night.WindowEndLocal,
+                EffectiveTimeZone,
+                MinimumAltitude);
+            item.CulminationLocal = events.CulminationLocal;
+            item.MaximumAltitudeDegrees = events.MaximumAltitudeDegrees;
+        }
+
+        var ordered = ObservationPlan.OrderBy(item => item.CulminationLocal).ThenBy(item => item.Id).ToList();
+        for (var index = 0; index < ordered.Count; index++)
+        {
+            var current = ObservationPlan.IndexOf(ordered[index]);
+            if (current != index)
+            {
+                ObservationPlan.Move(current, index);
+            }
+        }
+    }
+
+    /// <summary>Contenido CSV del plan (ver <see cref="PlanExport"/>).</summary>
+    public string BuildObservationPlanCsv(CultureInfo culture) => PlanExport.BuildCsv(ObservationPlan, culture);
+
+    /// <summary>Exporta el plan a CSV (UTF-8 con BOM para que Excel respete los acentos).</summary>
+    public bool ExportObservationPlan(string filePath)
+    {
+        try
+        {
+            File.WriteAllText(filePath, BuildObservationPlanCsv(CultureInfo.CurrentCulture), new UTF8Encoding(true));
+            PlanStatusMessage = $"Plan exportado a {Path.GetFileName(filePath)}.";
+            _logger.Info($"Plan exportado a {filePath}.");
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _logger.Error("No se pudo exportar el plan.", ex);
+            PlanStatusMessage = $"No se pudo exportar el plan: {ex.Message}";
+            return false;
+        }
+    }
 
     /// <summary>Aplica la configuración guardada en la pestaña de ajustes.</summary>
     private void OnSettingsSaved(Services.ObserverSettings settings)
@@ -482,11 +753,13 @@ public partial class MainViewModel : ObservableValidator
         Longitude = settings.LongitudeDegrees;
         Elevation = settings.ElevationMeters;
         MinimumAltitude = settings.MinimumAltitude;
+        MaximumMagnitude = settings.MaximumMagnitude;
         TimeZoneId = settings.TimeZoneId;
         OnPropertyChanged(nameof(ActiveLocationName));
         // Los setters ya disparan RecalculateAndFilter.
     }
 
+    /// <summary>Recalcula posiciones, noche y Luna, y después vuelve a filtrar.</summary>
     private void RecalculateAndFilter()
     {
         if (_isInitializing)
@@ -529,13 +802,32 @@ public partial class MainViewModel : ObservableValidator
         }
 
         OnPropertyChanged(nameof(VisibleObjectsCount));
+        UpdatePlanSchedule();
+        ApplyFilter();
+    }
+
+    /// <summary>Filtra y ordena la tabla con las posiciones ya calculadas.</summary>
+    private void ApplyFilter()
+    {
+        if (_isInitializing || _allObjects.Count == 0)
+        {
+            return;
+        }
+
+        ValidationMessage = GetInputError();
+        if (ValidationMessage is not null)
+        {
+            return;
+        }
 
         var filtered = _allObjects
             .Where(item =>
                 (!OnlyVisible || item.IsVisible)
                 && (TypeFilter == "All" || item.Type.ToString() == TypeFilter)
                 && (string.IsNullOrWhiteSpace(ConstellationFilter)
-                    || item.Constellation.Equals(ConstellationFilter, StringComparison.OrdinalIgnoreCase)))
+                    || item.Constellation.Equals(ConstellationFilter, StringComparison.OrdinalIgnoreCase))
+                && item.ApparentMagnitude <= MaximumMagnitude
+                && CatalogSearch.Matches(item, SearchText))
             .OrderByDescending(item => item.AltitudeDegrees);
 
         Objects.Clear();
@@ -550,13 +842,14 @@ public partial class MainViewModel : ObservableValidator
 
         if (!ReferenceEquals(selection, SelectedObject))
         {
-            // El cambio de selección ya recalcula el detalle.
+            // El cambio de selección ya recalcula el detalle y la carta.
             SelectedObject = selection;
         }
         else
         {
             UpdateSelectedObservation();
             OnPropertyChanged(nameof(IsSelectedObjectInObservationPlan));
+            InvalidateSkyMap();
         }
     }
 }

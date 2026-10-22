@@ -58,6 +58,10 @@ public partial class SettingsViewModel : ObservableValidator
     [ObservableProperty, NotifyDataErrorInfo]
     [Range(0, 90, ErrorMessage = "La altitud mínima debe estar entre 0 y 90°.")]
     private double minimumAltitude = 20;
+
+    [ObservableProperty, NotifyDataErrorInfo]
+    [Range(-2, 20, ErrorMessage = "La magnitud máxima debe estar entre -2 y 20.")]
+    private double maximumMagnitude = 12;
     [ObservableProperty] private City? selectedCity;
     [ObservableProperty] private bool isManualLocation;
     [ObservableProperty] private string? statusMessage;
@@ -154,7 +158,8 @@ public partial class SettingsViewModel : ObservableValidator
                 LongitudeDegrees = Longitude,
                 ElevationMeters = Elevation,
                 TimeZoneId = TimeZoneId,
-                MinimumAltitude = MinimumAltitude
+                MinimumAltitude = MinimumAltitude,
+                MaximumMagnitude = MaximumMagnitude
             };
 
             _settingsService.Save(settings);
@@ -197,6 +202,7 @@ public partial class SettingsViewModel : ObservableValidator
         Elevation = settings.ElevationMeters;
         TimeZoneId = settings.TimeZoneId;
         MinimumAltitude = settings.MinimumAltitude;
+        MaximumMagnitude = settings.MaximumMagnitude;
         // Si el catálogo de ciudades ya está cargado se recupera la ciudad guardada;
         // si no, LoadCitiesAsync la seleccionará al cargarlo.
         SelectedCity = settings.IsManualLocation

@@ -6,12 +6,16 @@ namespace AstroPlanner.UI.Services;
 /// <summary>
 /// Implementación basada en JSON de <see cref="IObservationPlanService"/>.
 /// Archivo: %LocalAppData%\AstroPlanner\plan.json
+/// Formato actual: [{"id":"M31","note":"..."}]. También lee el formato de la
+/// 0.3-0.5, una lista de ids (["M31","M42"]), para no perder planes existentes.
 /// </summary>
 public sealed class JsonObservationPlanService : IObservationPlanService
 {
     private static readonly JsonSerializerOptions Options = new()
     {
-        WriteIndented = true
+        WriteIndented = true,
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
+        PropertyNameCaseInsensitive = true
     };
 
     private readonly string _filePath;
@@ -24,7 +28,7 @@ public sealed class JsonObservationPlanService : IObservationPlanService
             "plan.json");
     }
 
-    public IReadOnlyList<string> Load()
+    public IReadOnlyList<ObservationPlanEntry> Load()
     {
         try
         {
@@ -33,8 +37,30 @@ public sealed class JsonObservationPlanService : IObservationPlanService
                 return [];
             }
 
-            var json = File.ReadAllText(_filePath);
-            return JsonSerializer.Deserialize<List<string>>(json, Options) ?? [];
+            using var document = JsonDocument.Parse(File.ReadAllText(_filePath));
+            if (document.RootElement.ValueKind != JsonValueKind.Array)
+            {
+                return [];
+            }
+
+            var entries = new List<ObservationPlanEntry>();
+            foreach (var element in document.RootElement.EnumerateArray())
+            {
+                var entry = element.ValueKind switch
+                {
+                    // Formato anterior: solo el id.
+                    JsonValueKind.String => new ObservationPlanEntry(element.GetString()!),
+                    JsonValueKind.Object => element.Deserialize<ObservationPlanEntry>(Options),
+                    _ => null
+                };
+
+                if (!string.IsNullOrWhiteSpace(entry?.Id))
+                {
+                    entries.Add(entry with { Note = entry.Note ?? "" });
+                }
+            }
+
+            return entries;
         }
         catch (JsonException)
         {
@@ -47,9 +73,9 @@ public sealed class JsonObservationPlanService : IObservationPlanService
         }
     }
 
-    public void Save(IEnumerable<string> objectIds)
+    public void Save(IEnumerable<ObservationPlanEntry> entries)
     {
-        ArgumentNullException.ThrowIfNull(objectIds);
+        ArgumentNullException.ThrowIfNull(entries);
 
         var directory = Path.GetDirectoryName(_filePath);
         if (!string.IsNullOrEmpty(directory))
@@ -57,7 +83,7 @@ public sealed class JsonObservationPlanService : IObservationPlanService
             Directory.CreateDirectory(directory);
         }
 
-        var json = JsonSerializer.Serialize(objectIds.ToList(), Options);
+        var json = JsonSerializer.Serialize(entries.ToList(), Options);
         var tempFile = _filePath + ".tmp";
         File.WriteAllText(tempFile, json);
 

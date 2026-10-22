@@ -283,6 +283,27 @@
                 </DataTrigger>
             </Style.Triggers>
         </Style>
+        <!-- Variantes para "Mi plan", cuyas filas exponen el objeto en Row -->
+        <Style x:Key="PlanMoonCellStyle" TargetType="TextBlock">
+            <Setter Property="TextAlignment" Value="Right"/>
+            <Setter Property="ToolTip" Value="Distancia angular a la Luna"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Row.MoonInterferes}" Value="True">
+                    <Setter Property="Foreground" Value="#FFB45E"/>
+                    <Setter Property="FontWeight" Value="SemiBold"/>
+                    <Setter Property="ToolTip" Value="La Luna, brillante y cercana, dificulta la observación"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
+        <Style x:Key="PlanStatusCellStyle" TargetType="TextBlock">
+            <Setter Property="TextAlignment" Value="Center"/>
+            <Setter Property="Foreground" Value="#62E6A7"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding Row.IsVisible}" Value="False">
+                    <Setter Property="Foreground" Value="#FF6B6B"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
         <Style x:Key="StatusCellStyle" TargetType="TextBlock">
             <Setter Property="TextAlignment" Value="Center"/>
             <Setter Property="Foreground" Value="#62E6A7"/>
@@ -344,6 +365,7 @@
                                   ItemContainerStyle="{StaticResource DarkComboBoxItemStyle}"
                                   Width="58" Margin="6,0,0,0" MaxDropDownHeight="240"
                                   ToolTip="Hora"
+                                  AutomationProperties.AutomationId="HourCombo" AutomationProperties.Name="Hora"
                                   ItemsSource="{Binding Hours}" ItemStringFormat="00"
                                   SelectedItem="{Binding ObservationHour}"/>
                         <TextBlock Text=":" Foreground="White" Margin="3,0" VerticalAlignment="Center"/>
@@ -351,6 +373,7 @@
                                   ItemContainerStyle="{StaticResource DarkComboBoxItemStyle}"
                                   Width="58" MaxDropDownHeight="240"
                                   ToolTip="Minuto"
+                                  AutomationProperties.AutomationId="MinuteCombo" AutomationProperties.Name="Minuto"
                                   ItemsSource="{Binding Minutes}" ItemStringFormat="00"
                                   SelectedItem="{Binding ObservationMinute}"/>
                         <Button Style="{StaticResource SecondaryButtonStyle}" Margin="6,0,0,0"
@@ -373,7 +396,11 @@
                 <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
                     <Button Style="{StaticResource SecondaryButtonStyle}" Content="Configuración" Click="OnSettingsClicked"/>
                     <Button Style="{StaticResource SecondaryButtonStyle}" Command="{Binding ResetFiltersCommand}" Content="Restablecer"/>
-                    <Button Style="{StaticResource PrimaryButtonStyle}" Content="Ahora" Click="OnNowClicked"/>
+                    <Button Style="{StaticResource PrimaryButtonStyle}" Content="Ahora" Command="{Binding SetNowCommand}"
+                            ToolTip="Pone la hora actual de la ubicación del observador"/>
+                    <CheckBox VerticalAlignment="Center" Margin="12,0,0,0" Foreground="White" Content="En vivo"
+                              IsChecked="{Binding IsLive}"
+                              ToolTip="Sigue la hora actual y actualiza todo cada minuto. Se desactiva al elegir otra hora."/>
                 </StackPanel>
             </Grid>
         </Border>
@@ -444,6 +471,27 @@
                             <!-- Fila de filtros -->
                             <!-- WrapPanel: si no caben en una línea, los filtros pasan a la siguiente. -->
                             <WrapPanel Grid.Row="0" Margin="0,0,0,2">
+                                <!-- Búsqueda por id, nombre o constelación (sin distinguir acentos) -->
+                                <Grid Width="210" Margin="0,0,12,6">
+                                    <TextBox x:Name="SearchBox" VerticalContentAlignment="Center" Padding="22,3,4,3"
+                                             Background="#0F1B2D" Foreground="White" CaretBrush="White" BorderBrush="#36557D"
+                                             Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
+                                             ToolTip="Busca por id (M31), nombre (Andrómeda) o constelación (Orión)"/>
+                                    <TextBlock Text="⌕" Foreground="#8FA8C8" Margin="7,0,0,1" VerticalAlignment="Center" IsHitTestVisible="False"/>
+                                    <TextBlock Text="Buscar M31, Andrómeda, Orión…" Foreground="#5D7392" Margin="24,0,0,0"
+                                               VerticalAlignment="Center" IsHitTestVisible="False">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Text, ElementName=SearchBox}" Value="">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Grid>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,12,6">
                                     <TextBlock VerticalAlignment="Center" Margin="0,0,6,0" Foreground="#C9D7ED" FontWeight="SemiBold" Text="Tipo"/>
                                     <ComboBox Style="{StaticResource DarkComboBoxStyle}"
@@ -462,6 +510,10 @@
                                     <TextBlock VerticalAlignment="Center" Margin="0,0,6,0" Foreground="#C9D7ED" FontWeight="SemiBold" Text="Alt. mín. (°)"/>
                                     <TextBox Width="50" Margin="0,0,12,0" VerticalContentAlignment="Center"
                                              Text="{Binding MinimumAltitude, UpdateSourceTrigger=PropertyChanged}"/>
+                                    <TextBlock VerticalAlignment="Center" Margin="0,0,6,0" Foreground="#C9D7ED" FontWeight="SemiBold" Text="Mag. máx."
+                                               ToolTip="Oculta los objetos más débiles (mayor número = más débil)"/>
+                                    <TextBox Width="44" Margin="0,0,12,0" VerticalContentAlignment="Center"
+                                             Text="{Binding MaximumMagnitude, UpdateSourceTrigger=PropertyChanged}"/>
                                     <CheckBox VerticalAlignment="Center" Content="Solo visibles"
                                               IsChecked="{Binding OnlyVisible}"/>
                                 </StackPanel>
@@ -541,6 +593,35 @@
                             <ScottPlot:WpfPlot x:Name="AltitudePlot" Grid.Row="1" Margin="0,8,0,0"/>
                         </Grid>
                     </Border>
+                </Grid>
+            </TabItem>
+
+            <TabItem Header="Cielo" Style="{StaticResource DarkTabItemStyle}">
+                <Grid Margin="12">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="270"/>
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0" Padding="8" Background="#0F1B2D"
+                            BorderBrush="{StaticResource NightBorderBrush}" BorderThickness="1" CornerRadius="6">
+                        <ScottPlot:WpfPlot x:Name="SkyPlot" MouseLeftButtonUp="OnSkyPlotClicked"/>
+                    </Border>
+                    <StackPanel Grid.Column="1" Margin="16,4,0,0">
+                        <TextBlock FontSize="18" FontWeight="SemiBold" Text="El cielo a la hora elegida"/>
+                        <TextBlock Margin="0,8,0,0" Foreground="{StaticResource NightMutedTextBrush}" TextWrapping="Wrap"
+                                   Text="El centro es el cénit y el borde, el horizonte. Norte arriba y este a la izquierda, como al mirar hacia arriba."/>
+                        <TextBlock Margin="0,14,0,4" FontWeight="SemiBold" Text="Leyenda"/>
+                        <TextBlock Foreground="#55C7E8" Text="●  Visible (sobre la altitud mínima)"/>
+                        <TextBlock Foreground="#5D7392" Text="●  Bajo la altitud mínima"/>
+                        <TextBlock Foreground="#FFB45E" Text="●  En Mi plan"/>
+                        <TextBlock Foreground="White" Text="◯  Objeto seleccionado"/>
+                        <TextBlock Foreground="#E8E3C8" Text="●  Luna"/>
+                        <TextBlock Foreground="#FFB45E" Text="- - Altitud mínima"/>
+                        <TextBlock Margin="0,10,0,0" Foreground="{StaticResource NightMutedTextBrush}" TextWrapping="Wrap"
+                                   Text="La carta respeta los filtros y la búsqueda del Planificador. Haz clic en un objeto para seleccionarlo."/>
+                        <TextBlock Margin="0,14,0,0" FontWeight="SemiBold" Text="{Binding SelectedObject.Id, StringFormat=Seleccionado: {0}}"/>
+                        <TextBlock Foreground="{StaticResource NightMutedTextBrush}" Text="{Binding SelectedObject.CommonName}" TextWrapping="Wrap"/>
+                    </StackPanel>
                 </Grid>
             </TabItem>
 
@@ -628,7 +709,29 @@
 
             <TabItem Header="Mi plan" Style="{StaticResource DarkTabItemStyle}">
                 <Grid Margin="12">
-                    <TextBlock Text="Tu plan está vacío. Agrega objetos desde la pestaña Detalle del objeto."
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <!-- Barra: orden, exportar e imprimir -->
+                    <DockPanel Grid.Row="0" Margin="0,0,0,10" LastChildFill="True">
+                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                            <Button Style="{StaticResource SecondaryButtonStyle}" Content="Exportar CSV…" Margin="0,0,8,0"
+                                    ToolTip="Guarda el plan como CSV para abrirlo en Excel"
+                                    Click="OnExportPlanClicked"/>
+                            <Button Style="{StaticResource PrimaryButtonStyle}" Content="Imprimir…"
+                                    ToolTip="Imprime el plan (o guárdalo como PDF con Microsoft Print to PDF)"
+                                    Click="OnPrintPlanClicked"/>
+                        </StackPanel>
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock Foreground="{StaticResource NightMutedTextBrush}" TextWrapping="Wrap"
+                                       Text="Ordenado por hora de culminación: el orden en que conviene observar. Escribe tus notas en la columna Notas."/>
+                            <TextBlock Foreground="#8BE0B2" Text="{Binding PlanStatusMessage}" TextWrapping="Wrap"/>
+                        </StackPanel>
+                    </DockPanel>
+
+                    <TextBlock Grid.Row="1" Text="Tu plan está vacío. Agrega objetos desde la pestaña Detalle del objeto."
                                HorizontalAlignment="Center" VerticalAlignment="Center"
                                Foreground="{StaticResource NightMutedTextBrush}" FontSize="16">
                         <TextBlock.Style>
@@ -642,7 +745,7 @@
                             </Style>
                         </TextBlock.Style>
                     </TextBlock>
-                    <Border Padding="8" Background="#0F1B2D"
+                    <Border Grid.Row="1" Padding="8" Background="#0F1B2D"
                             BorderBrush="{StaticResource NightBorderBrush}" BorderThickness="1" CornerRadius="6">
                         <Border.Style>
                             <Style TargetType="Border">
@@ -656,15 +759,25 @@
                         <DataGrid Style="{StaticResource NightDataGridStyle}"
                                   ItemsSource="{Binding ObservationPlan}">
                             <DataGrid.Columns>
-                                <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="55"/>
-                                <DataGridTextColumn Header="Nombre" Binding="{Binding CommonName}" Width="*"/>
-                                <DataGridTextColumn Header="Constelación" Binding="{Binding Constellation}" Width="100"/>
-                                <DataGridTextColumn Header="Tipo" Binding="{Binding Type}" Width="112"/>
-                                <DataGridTextColumn Header="Mag." Binding="{Binding ApparentMagnitude, StringFormat=F1}" Width="50" ElementStyle="{StaticResource NumericCellStyle}"/>
-                                <DataGridTextColumn Header="Altitud" Binding="{Binding AltitudeDegrees, StringFormat=F1}" Width="62" ElementStyle="{StaticResource NumericCellStyle}"/>
-                                <DataGridTextColumn Header="Azimut" Binding="{Binding AzimuthDegrees, StringFormat=F1}" Width="64" ElementStyle="{StaticResource NumericCellStyle}"/>
-                                <DataGridTextColumn Header="Luna" Binding="{Binding MoonSeparationDegrees, StringFormat={}{0:0}°}" Width="52" ElementStyle="{StaticResource MoonCellStyle}"/>
-                                <DataGridTextColumn Header="Estado" Binding="{Binding VisibilityStatus}" Width="82" ElementStyle="{StaticResource StatusCellStyle}"/>
+                                <DataGridTextColumn Header="Culminación" Binding="{Binding CulminationLocal, StringFormat=HH:mm}" Width="88"/>
+                                <DataGridTextColumn Header="ID" Binding="{Binding Row.Id}" Width="55"/>
+                                <DataGridTextColumn Header="Nombre" Binding="{Binding Row.CommonName}" Width="200"/>
+                                <DataGridTextColumn Header="Constelación" Binding="{Binding Row.Constellation}" Width="100"/>
+                                <DataGridTextColumn Header="Mag." Binding="{Binding Row.ApparentMagnitude, StringFormat=F1}" Width="50" ElementStyle="{StaticResource NumericCellStyle}"/>
+                                <DataGridTextColumn Header="Alt. máx." Binding="{Binding MaximumAltitudeDegrees, StringFormat={}{0:0}°}" Width="66" ElementStyle="{StaticResource NumericCellStyle}"/>
+                                <DataGridTextColumn Header="Altitud" Binding="{Binding Row.AltitudeDegrees, StringFormat=F1}" Width="62" ElementStyle="{StaticResource NumericCellStyle}"/>
+                                <DataGridTextColumn Header="Luna" Binding="{Binding Row.MoonSeparationDegrees, StringFormat={}{0:0}°}" Width="52" ElementStyle="{StaticResource PlanMoonCellStyle}"/>
+                                <DataGridTextColumn Header="Estado" Binding="{Binding Row.VisibilityStatus}" Width="82" ElementStyle="{StaticResource PlanStatusCellStyle}"/>
+                                <DataGridTemplateColumn Header="Notas" Width="*" MinWidth="160">
+                                    <DataGridTemplateColumn.CellTemplate>
+                                        <DataTemplate>
+                                            <TextBox Text="{Binding Note, UpdateSourceTrigger=LostFocus}"
+                                                     Background="#14233A" Foreground="White" CaretBrush="White"
+                                                     BorderBrush="#2B3F5E" BorderThickness="1" Padding="4,1"
+                                                     ToolTip="Nota para este objeto (se guarda al salir del campo)"/>
+                                        </DataTemplate>
+                                    </DataGridTemplateColumn.CellTemplate>
+                                </DataGridTemplateColumn>
                                 <DataGridTemplateColumn Width="90">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>

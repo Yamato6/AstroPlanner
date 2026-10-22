@@ -9,17 +9,25 @@ su trayectoria de altitud/azimut a lo largo de la noche.
 - **Noche y Luna:** puesta y salida del Sol, noche oscura (crepúsculo
   astronómico) y fase, iluminación y altura de la Luna para la fecha elegida.
   Aviso cuando a la hora elegida es de día o hay crepúsculo.
+- **Fecha y hora:** calendario, hora/minuto, ±1 h, "Ahora" (hora actual de la
+  ubicación del observador) y modo **En vivo**, que sigue el reloj y actualiza
+  todo cada minuto hasta que se elige otra hora a mano.
 - **Planificador:** tabla con los 110 objetos Messier (altitud, azimut,
-  distancia a la Luna, estado de visibilidad), filtros por tipo, constelación y
-  "solo visibles", y gráfico de altitud de la puesta a la salida del Sol con el
-  crepúsculo sombreado, la curva de la Luna y la hora elegida.
+  distancia a la Luna, estado de visibilidad), búsqueda por id, nombre o
+  constelación (sin distinguir acentos), filtros por tipo, constelación,
+  magnitud máxima y "solo visibles", y gráfico de altitud de la puesta a la
+  salida del Sol con el crepúsculo sombreado, la curva de la Luna y la hora elegida.
+- **Cielo:** carta polar del cielo a la hora elegida (cénit en el centro, norte
+  arriba, este a la izquierda) con los objetos sobre el horizonte, Mi plan, la
+  Luna y el círculo de altitud mínima; clic en un objeto para seleccionarlo.
 - **Detalle del objeto:** hora de salida, inicio de visibilidad (cruce del umbral
   de altitud), mejor momento de observación, ocaso, altitud máxima, distancia a
   la Luna y aviso si su brillo dificulta la observación.
-- **Mi plan:** tabla con los objetos añadidos desde el detalle, con su posición
-  actual; se guarda entre sesiones.
+- **Mi plan:** objetos añadidos desde el detalle, ordenados por hora de
+  culminación (el orden en que conviene observar), con notas por objeto;
+  exportar a CSV e imprimir. Se guarda entre sesiones.
 - **Configuración** (ventana modal): ciudad del catálogo o coordenadas manuales,
-  elevación, zona horaria y altitud mínima.
+  elevación, zona horaria, altitud mínima y magnitud máxima.
 
 ## Arquitectura
 
@@ -48,17 +56,20 @@ AstroPlanner.Data/    Catálogos y persistencia de datos.
                         Ambos se incrustan en el ensamblado (EmbeddedResource).
 
 AstroPlanner.UI/      WPF (.NET 8), ViewModels, vistas XAML, servicios de presentación.
-  ├── MainWindow.xaml   Pestañas Planificador / Detalle del objeto / Mi plan
+  ├── MainWindow.xaml   Pestañas Planificador / Cielo / Detalle del objeto / Mi plan
   ├── SettingsWindow.xaml  Ventana modal de configuración
-  ├── ViewModels/       MainViewModel (planificador, filtros, plan de observación)
+  ├── ViewModels/       MainViewModel (planificador, filtros, modo en vivo, plan, carta)
+  │                     PlanItemViewModel (fila de Mi plan: nota y culminación)
   │                     CelestialObjectObservation (datos del detalle)
+  │                     CatalogSearch (búsqueda sin acentos), SkyProjection (carta polar)
   │                     SettingsViewModel (configuración persistida, ciudades)
   ├── Services/         ISettingsService + JsonSettingsService (settings.json)
   │                     IObservationPlanService + JsonObservationPlanService (plan.json)
+  │                     PlanExport (CSV), PlanPrintDocument (FlowDocument imprimible)
   │                     IAppLogger + FileAppLogger (logs\astroplanner-AAAAMMDD.log)
   └── App.xaml.cs       Contenedor de DI y manejo global de errores
 
-AstroPlanner.Tests/    xUnit + FluentAssertions (82 pruebas de Core, Data y UI),
+AstroPlanner.Tests/    xUnit + FluentAssertions (112 pruebas de Core, Data y UI),
                        incluidas pruebas de referencia contra los ejemplos de Meeus.
                        net8.0-windows para poder probar ViewModels y servicios de UI.
 
@@ -111,7 +122,20 @@ AstroPlanner.Tests/    xUnit + FluentAssertions (82 pruebas de Core, Data y UI),
   mitad de guardado. Si el archivo es inválido se cargan valores por defecto
   (Ciudad de México, altitud mínima 20°). Cerrar la ventana de configuración sin
   guardar descarta los cambios. "Mi plan" se guarda igual en `plan.json`, como
-  lista de ids del catálogo.
+  `[{"id": "M31", "note": "..."}]`; también se lee el formato de la 0.3-0.5
+  (lista de ids) para no perder planes existentes.
+- **Filtrar no recalcula.** Búsqueda, tipo, constelación, magnitud y "solo
+  visibles" solo vuelven a filtrar (`ApplyFilter`); las posiciones, la noche y
+  la Luna se recalculan (`RecalculateAndFilter`) solo si cambian la hora, el
+  lugar o la altitud mínima. Así escribir en la búsqueda no recalcula el cielo
+  en cada tecla.
+- **Modo en vivo con `TimeProvider`.** `MainViewModel` recibe un `TimeProvider`
+  (en la app, `TimeProvider.System`) para la hora actual y el temporizador; las
+  pruebas usan un reloj manual. El temporizador dispara en otro hilo y el cambio
+  se aplica en el de la interfaz mediante el `SynchronizationContext` capturado.
+- **CSV con la cultura del sistema.** Separador de listas y formato numérico de
+  la cultura actual y UTF-8 con BOM, para que Excel lo abra en columnas y con
+  acentos sin pasos extra.
 - **`CelestialObjectType.Unknown`** existe porque M40 (doble estrella) y M73
   (agrupación de estrellas sin confirmar) no encajan en las categorías estándar.
 - **ScottPlot 5** para el gráfico. La dependencia transitoria
@@ -166,11 +190,8 @@ dotnet test AstroPlanner.Tests --filter "FullyQualifiedName~AstronomyMathTests|F
 **0.5 (hecho):** Sol y noche real, Luna (fase, posición, distancia a cada
 objeto), precesión, refracción y pruebas de referencia.
 
-**0.6: usabilidad**
-- Búsqueda por nombre/id y filtro de magnitud.
-- Modo tiempo real (actualización cada minuto).
-- Mi plan: orden por culminación, notas, exportar a CSV, imprimir.
-- Carta polar 2D del cielo.
+**0.6 (hecho):** búsqueda y filtro de magnitud, modo en vivo, Mi plan con
+orden por culminación, notas, CSV e impresión, y carta polar del cielo.
 
 **0.7 y siguientes:** bitácora de observaciones, pronóstico de nubes
 (Open-Meteo), planetas, instalador con aviso de nueva versión, estilo Fluent.

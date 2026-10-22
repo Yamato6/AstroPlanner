@@ -1,5 +1,4 @@
-using AstroPlanner.Core.Interfaces;
-using AstroPlanner.Core.Models;
+﻿using AstroPlanner.Core.Models;
 using AstroPlanner.Core.Services;
 using AstroPlanner.UI.Services;
 using AstroPlanner.UI.ViewModels;
@@ -13,17 +12,9 @@ namespace AstroPlanner.Tests;
 /// </summary>
 public sealed class ViewModelTests
 {
-    private static readonly CelestialObject M42 = new(
-        "M42", "Nebulosa de Orión", "Orion", CelestialObjectType.DiffuseNebula, 4.0,
-        new EquatorialCoordinates(5.59, -5.39));
-
-    private static readonly CelestialObject M31 = new(
-        "M31", "Galaxia de Andrómeda", "Andromeda", CelestialObjectType.Galaxy, 3.4,
-        new EquatorialCoordinates(0.712, 41.27));
-
-    private static readonly CelestialObject M13 = new(
-        "M13", "Gran Cúmulo de Hércules", "Hercules", CelestialObjectType.GlobularCluster, 5.8,
-        new EquatorialCoordinates(16.69, 36.46));
+    private static readonly CelestialObject M42 = TestCatalog.M42;
+    private static readonly CelestialObject M31 = TestCatalog.M31;
+    private static readonly CelestialObject M13 = TestCatalog.M13;
 
     private readonly FakeSettingsService _settingsService = new(new ObserverSettings { MinimumAltitude = 35 });
     private readonly FakePlanService _planService = new();
@@ -194,7 +185,7 @@ public sealed class ViewModelTests
     [Fact]
     public async Task ObservationPlan_IsRestoredByIdAndSavedOnChanges()
     {
-        _planService.Ids = ["M31", "M999"];
+        _planService.Entries = [new("M31", "con filtro"), new("M999")];
         var viewModel = await CreateLoadedMainAsync();
 
         viewModel.ObservationPlan.Select(o => o.Id).Should().Equal("M31");
@@ -233,50 +224,5 @@ public sealed class ViewModelTests
         settings.RevertChanges();
 
         settings.MinimumAltitude.Should().Be(35);
-    }
-
-    private sealed class FakeCelestialRepository(IReadOnlyList<CelestialObject> objects) : ICelestialRepository
-    {
-        public Task<IReadOnlyList<CelestialObject>> GetAllAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult(objects);
-    }
-
-    private sealed class FakeCityRepository : ICityRepository
-    {
-        public Task<IReadOnlyList<City>> GetAllAsync(CancellationToken cancellationToken = default) =>
-            Task.FromResult<IReadOnlyList<City>>([]);
-    }
-
-    private sealed class FakeSettingsService(ObserverSettings saved) : ISettingsService
-    {
-        private ObserverSettings _saved = saved;
-
-        public int SaveCount { get; private set; }
-
-        public ObserverSettings Load() => _saved;
-
-        public void Save(ObserverSettings settings)
-        {
-            _saved = settings;
-            SaveCount++;
-        }
-    }
-
-    private sealed class FakePlanService : IObservationPlanService
-    {
-        public List<string> Ids { get; set; } = [];
-
-        public IReadOnlyList<string> Load() => Ids;
-
-        public void Save(IEnumerable<string> objectIds) => Ids = objectIds.ToList();
-    }
-
-    private sealed class NullLogger : IAppLogger
-    {
-        public string LogLocation => "";
-
-        public void Info(string message) { }
-
-        public void Error(string message, Exception? exception = null) { }
     }
 }

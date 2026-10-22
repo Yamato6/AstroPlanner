@@ -1,5 +1,8 @@
 ﻿using System.Windows;
 using System.ComponentModel;
+using System.Windows.Documents;
+using System.Windows.Input;
+using AstroPlanner.UI.Services;
 using AstroPlanner.UI.ViewModels;
 
 namespace AstroPlanner.UI;
@@ -16,6 +19,11 @@ public partial class MainWindow : Window
     {
         InitializeComponent();
         AltitudePlot.UserInputProcessor.IsEnabled = false;
+        SkyPlot.UserInputProcessor.IsEnabled = false;
+        SkyPlot.SizeChanged += (_, _) =>
+        {
+            if (_viewModel is not null) UpdateSkyMap(_viewModel);
+        };
         DataContextChanged += OnDataContextChanged;
         Loaded += OnLoaded;
     }
@@ -42,6 +50,7 @@ public partial class MainWindow : Window
         await _viewModel.Settings.LoadCitiesCommand.ExecuteAsync(null);
         await _viewModel.LoadCommand.ExecuteAsync(null);
         UpdateChart(_viewModel);
+        UpdateSkyMap(_viewModel);
     }
 
     private void OnSettingsClicked(object sender, RoutedEventArgs e)
@@ -76,14 +85,145 @@ public partial class MainWindow : Window
         {
             UpdateChart(_viewModel);
         }
+
+        if (e.PropertyName is nameof(MainViewModel.SkyMapVersion))
+        {
+            UpdateSkyMap(_viewModel);
+        }
     }
 
-    private void OnNowClicked(object sender, RoutedEventArgs e)
+    private void OnExportPlanClicked(object sender, RoutedEventArgs e)
     {
-        if (_viewModel is not null)
+        if (_viewModel is null || _viewModel.ObservationPlan.Count == 0) return;
+
+        var dialog = new Microsoft.Win32.SaveFileDialog
         {
-            _viewModel.ObservationDateTime = DateTime.Now;
+            Title = "Exportar Mi plan",
+            Filter = "CSV (*.csv)|*.csv",
+            FileName = $"AstroPlanner-plan-{_viewModel.ObservationDate:yyyy-MM-dd}.csv"
+        };
+
+        if (dialog.ShowDialog(this) == true)
+        {
+            _viewModel.ExportObservationPlan(dialog.FileName);
         }
+    }
+
+    private void OnPrintPlanClicked(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel is null || _viewModel.ObservationPlan.Count == 0) return;
+
+        var dialog = new System.Windows.Controls.PrintDialog();
+        if (dialog.ShowDialog() != true) return;
+
+        var document = PlanPrintDocument.Create(_viewModel.ObservationPlan.ToList(), _viewModel.PlanSummaryText);
+        document.PageWidth = dialog.PrintableAreaWidth;
+        document.PageHeight = dialog.PrintableAreaHeight;
+        dialog.PrintDocument(((IDocumentPaginatorSource)document).DocumentPaginator, "AstroPlanner - Mi plan");
+    }
+
+    private void OnSkyPlotClicked(object sender, MouseButtonEventArgs e)
+    {
+        if (_viewModel is null) return;
+
+        // Píxeles de WPF → píxeles de ScottPlot (escala de pantalla) → coordenadas de la carta.
+        var position = e.GetPosition(SkyPlot);
+        var scale = SkyPlot.DisplayScale;
+        var coordinates = SkyPlot.Plot.GetCoordinates(
+            new ScottPlot.Pixel((float)(position.X * scale), (float)(position.Y * scale)));
+        _viewModel.SelectNearestOnSkyMap(coordinates.X, coordinates.Y);
+    }
+
+    /// <summary>
+    /// Carta polar del cielo: círculos de altitud cada 30°, puntos cardinales,
+    /// objetos sobre el horizonte (tamaño según magnitud), Mi plan, selección y Luna.
+    /// </summary>
+    private void UpdateSkyMap(MainViewModel viewModel)
+    {
+        var plot = SkyPlot.Plot;
+        plot.Clear();
+        plot.FigureBackground.Color = ScottPlot.Color.FromHex("#0F1B2D");
+        plot.DataBackground.Color = ScottPlot.Color.FromHex("#0F1B2D");
+        plot.Axes.Frameless();
+        plot.HideGrid();
+
+        var gridColor = ScottPlot.Color.FromHex("#2A425F");
+        var horizon = plot.Add.Circle(0, 0, SkyProjection.HorizonRadius);
+        horizon.LineColor = ScottPlot.Color.FromHex("#4A6A90");
+        horizon.LineWidth = 2;
+        horizon.FillColor = ScottPlot.Color.FromHex("#101E33");
+
+        foreach (var altitude in new[] { 30.0, 60.0 })
+        {
+            var ring = plot.Add.Circle(0, 0, SkyProjection.HorizonRadius - altitude);
+            ring.LineColor = gridColor;
+            ring.LineWidth = 1;
+        }
+
+        // Altitud mínima: por encima de este círculo el objeto cuenta como visible.
+        var threshold = plot.Add.Circle(0, 0, SkyProjection.HorizonRadius - viewModel.MinimumAltitude);
+        threshold.LineColor = ScottPlot.Color.FromHex("#FFB45E").WithAlpha(0.6);
+        threshold.LineWidth = 1;
+        threshold.LinePattern = ScottPlot.LinePattern.Dashed;
+
+        foreach (var azimuth in new[] { 0.0, 45.0, 90.0, 135.0 })
+        {
+            var (x1, y1) = SkyProjection.ToXY(0, azimuth);
+            var (x2, y2) = SkyProjection.ToXY(0, azimuth + 180);
+            var line = plot.Add.Line(x1, y1, x2, y2);
+            line.LineColor = gridColor;
+            line.LineWidth = 1;
+        }
+
+        foreach (var (label, azimuth) in new[] { ("N", 0.0), ("E", 90.0), ("S", 180.0), ("O", 270.0) })
+        {
+            var (x, y) = SkyProjection.ToXY(-8, azimuth);
+            var text = plot.Add.Text(label, x, y);
+            text.LabelFontColor = ScottPlot.Color.FromHex("#C9D7ED");
+            text.LabelFontSize = 16;
+            text.LabelBold = true;
+            text.LabelAlignment = ScottPlot.Alignment.MiddleCenter;
+        }
+
+        foreach (var point in viewModel.GetSkyMapPoints().OrderBy(p => p.IsInPlan || p.IsSelected))
+        {
+            var (x, y) = point.Position;
+            var color = point.IsInPlan ? "#FFB45E" : point.IsVisible ? "#55C7E8" : "#5D7392";
+            var size = (float)Math.Clamp(13 - point.Magnitude, 4, 10);
+            plot.Add.Marker(x, y, ScottPlot.MarkerShape.FilledCircle, size, ScottPlot.Color.FromHex(color));
+
+            if (point.IsSelected)
+            {
+                plot.Add.Marker(x, y, ScottPlot.MarkerShape.OpenCircle, size + 12, ScottPlot.Colors.White);
+            }
+
+            var label = plot.Add.Text(point.Id, x + 2.5, y);
+            label.LabelFontColor = ScottPlot.Color.FromHex(point.IsInPlan || point.IsSelected ? "#EAF2FF" : "#7F93B0");
+            label.LabelFontSize = point.IsInPlan || point.IsSelected ? 12 : 10;
+            label.LabelAlignment = ScottPlot.Alignment.MiddleLeft;
+        }
+
+        if (viewModel.Moon is { IsAboveHorizon: true } moon)
+        {
+            var (x, y) = SkyProjection.ToXY(moon.Horizontal.AltitudeDegrees, moon.Horizontal.AzimuthDegrees);
+            plot.Add.Marker(x, y, ScottPlot.MarkerShape.FilledCircle, 22, ScottPlot.Color.FromHex("#E8E3C8"));
+            var label = plot.Add.Text($"Luna {viewModel.MoonIlluminationText}", x + 5, y);
+            label.LabelFontColor = ScottPlot.Color.FromHex("#E8E3C8");
+            label.LabelFontSize = 12;
+            label.LabelAlignment = ScottPlot.Alignment.MiddleLeft;
+        }
+
+        // Círculo completo y sin deformar: el lado corto del gráfico abarca
+        // ±100 y el largo se amplía en proporción (SquareUnits recortaba el corto).
+        var width = Math.Max(SkyPlot.ActualWidth, 1);
+        var height = Math.Max(SkyPlot.ActualHeight, 1);
+        const double halfSpan = 100;
+        plot.Axes.SetLimits(
+            -halfSpan * Math.Max(1, width / height),
+            halfSpan * Math.Max(1, width / height),
+            -halfSpan * Math.Max(1, height / width),
+            halfSpan * Math.Max(1, height / width));
+        SkyPlot.Refresh();
     }
 
     private void UpdateChart(MainViewModel viewModel)

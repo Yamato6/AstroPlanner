@@ -70,9 +70,23 @@ public sealed class PersistenceTests : IDisposable
     {
         var service = new JsonObservationPlanService(PathFor("plan.json"));
 
-        service.Save(["M42", "M31", "M13"]);
+        service.Save([new("M42", "filtro UHC"), new("M31"), new("M13", "con \"comillas\"")]);
 
-        service.Load().Should().Equal("M42", "M31", "M13");
+        service.Load().Should().Equal(
+            new ObservationPlanEntry("M42", "filtro UHC"),
+            new ObservationPlanEntry("M31", ""),
+            new ObservationPlanEntry("M13", "con \"comillas\""));
+    }
+
+    [Fact]
+    public void PlanService_ReadsLegacyListOfIds()
+    {
+        // Formato de las versiones 0.3-0.5: solo ids, sin notas.
+        File.WriteAllText(PathFor("plan.json"), "[ \"M31\", \"M42\" ]");
+
+        var entries = new JsonObservationPlanService(PathFor("plan.json")).Load();
+
+        entries.Should().Equal(new ObservationPlanEntry("M31", ""), new ObservationPlanEntry("M42", ""));
     }
 
     [Fact]

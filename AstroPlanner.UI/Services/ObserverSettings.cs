@@ -24,6 +24,12 @@ public sealed class ObserverSettings
     /// <summary>Umbral de altitud mínimo (grados) para considerar un objeto visible.</summary>
     public double MinimumAltitude { get; set; } = 20;
 
+    /// <summary>
+    /// Magnitud máxima (más débil) que se muestra. El objeto Messier más débil
+    /// es de ~10.2, así que el valor por defecto (12) no oculta ninguno.
+    /// </summary>
+    public double MaximumMagnitude { get; set; } = 12;
+
     public ObserverLocation ToObserverLocation() =>
         new(LatitudeDegrees, LongitudeDegrees, ElevationMeters);
 

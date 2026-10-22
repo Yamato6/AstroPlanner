@@ -48,6 +48,7 @@
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
 
                 <Label Grid.Row="0" Content="Ciudad"/>
@@ -83,7 +84,12 @@
                 <TextBox Grid.Row="5" Grid.Column="1"
                          Text="{Binding MinimumAltitude, UpdateSourceTrigger=PropertyChanged}"/>
 
-                <Button Grid.Row="6" Grid.Column="1" HorizontalAlignment="Left" Margin="0,10,0,0"
+                <Label Grid.Row="6" Content="Magnitud máxima"
+                       ToolTip="Oculta los objetos más débiles que esta magnitud (mayor número = más débil)."/>
+                <TextBox Grid.Row="6" Grid.Column="1"
+                         Text="{Binding MaximumMagnitude, UpdateSourceTrigger=PropertyChanged}"/>
+
+                <Button Grid.Row="7" Grid.Column="1" HorizontalAlignment="Left" Margin="0,10,0,0"
                         Content="Usar coordenadas manuales"
                         Command="{Binding UseManualLocationCommand}"/>
             </Grid>

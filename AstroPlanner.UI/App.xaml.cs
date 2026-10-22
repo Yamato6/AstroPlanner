@@ -28,6 +28,9 @@ public partial class App : Application
 
     private static void ConfigureServices(IServiceCollection services)
     {
+        // Reloj del sistema (sustituible en pruebas; lo usa el modo en vivo)
+        services.AddSingleton(TimeProvider.System);
+
         // Registro de errores (archivo diario en %LocalAppData%\AstroPlanner\logs)
         services.AddSingleton<IAppLogger, FileAppLogger>();
 
