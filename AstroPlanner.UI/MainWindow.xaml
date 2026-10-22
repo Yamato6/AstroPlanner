@@ -448,6 +448,19 @@
                             <StackPanel Grid.Row="1" Margin="0,0,0,6">
                                 <TextBlock Foreground="#C0392B" TextWrapping="Wrap"
                                            Text="{Binding ErrorMessage}"/>
+                                <!-- Aviso de entrada inválida; la tabla conserva el último cálculo válido -->
+                                <TextBlock Foreground="#FF6B6B" TextWrapping="Wrap" FontWeight="SemiBold"
+                                           Text="{Binding ValidationMessage}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding ValidationMessage}" Value="{x:Null}">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                                 <TextBlock Foreground="#555" TextWrapping="Wrap">
                                     <Run Text="Mostrando "/><Run Text="{Binding Objects.Count, Mode=OneWay}"/><Run Text=" objetos"/>
                                 </TextBlock>

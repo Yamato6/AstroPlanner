@@ -11,13 +11,11 @@
     <ProjectReference Include="..\AstroPlanner.Core\AstroPlanner.Core.csproj" />
   </ItemGroup>
 
+  <!-- Catálogos incrustados: el .exe publicado no depende de la carpeta SeedData. -->
   <ItemGroup>
-    <None Update="SeedData\messier_objects.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
-    <None Update="SeedData\cities.json">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-    </None>
+    <None Remove="SeedData\*.json" />
+    <EmbeddedResource Include="SeedData\messier_objects.json" LogicalName="SeedData/messier_objects.json" />
+    <EmbeddedResource Include="SeedData\cities.json" LogicalName="SeedData/cities.json" />
   </ItemGroup>
 
 </Project>

@@ -23,17 +23,20 @@ Clean Architecture + MVVM estricto. `AstroPlanner.Core` no depende de UI.
 ```
 AstroPlanner.Core/    Modelos, algoritmos astronómicos, interfaces. Sin dependencias de UI.
   ├── Models/           EquatorialCoordinates, HorizontalCoordinates, ObserverLocation,
-  │                     CelestialObject (+ enum CelestialObjectType), City
+  │                     CelestialObject (+ enum CelestialObjectType), City, ObjectNightEvents
   ├── Algorithms/       AstronomyMath (JD, GMST, LST, normalización)
   │                     CoordinateTransformer (ecuatorial → horizontal, Math.Clamp)
+  │                     TimeZoneConversion (hora local → UTC, horario de verano)
+  │                     ObservationNight (ventana 18:00 → 06:00, cruces de altitud)
   ├── Services/         AstronomyService (implementación de IAstronomyService)
   └── Interfaces/       ICelestialRepository, ICityRepository, IAstronomyService
 
 AstroPlanner.Data/    Catálogos y persistencia de datos.
   ├── Repositories/     JsonCelestialRepository (System.Text.Json + enum por string)
-  │                     JsonCityRepository
+  │                     JsonCityRepository, SeedDataSource (recursos incrustados)
   └── SeedData/         messier_objects.json (110 objetos, coordenadas J2000)
                         cities.json (ciudades de México con zona horaria)
+                        Ambos se incrustan en el ensamblado (EmbeddedResource).
 
 AstroPlanner.UI/      WPF (.NET 8), ViewModels, vistas XAML, servicios de presentación.
   ├── MainWindow.xaml   Pestañas Planificador / Detalle del objeto / Mi plan
@@ -43,9 +46,14 @@ AstroPlanner.UI/      WPF (.NET 8), ViewModels, vistas XAML, servicios de presen
   │                     SettingsViewModel (configuración persistida, ciudades)
   ├── Services/         ISettingsService + JsonSettingsService (settings.json)
   │                     IObservationPlanService + JsonObservationPlanService (plan.json)
-  └── App.xaml.cs       Contenedor de DI (Microsoft.Extensions.DependencyInjection)
+  │                     IAppLogger + FileAppLogger (logs\astroplanner-AAAAMMDD.log)
+  └── App.xaml.cs       Contenedor de DI y manejo global de errores
 
-AstroPlanner.Tests/    xUnit + FluentAssertions (22 pruebas de Core y Data).
+AstroPlanner.Tests/    xUnit + FluentAssertions (56 pruebas de Core, Data y UI).
+                       net8.0-windows para poder probar ViewModels y servicios de UI.
+
+.github/workflows/ci.yml  Compila y prueba en cada push/PR; con un tag v* publica
+                          el .exe y crea un borrador de release en GitHub.
 ```
 
 ## Decisiones no obvias
@@ -59,7 +67,21 @@ AstroPlanner.Tests/    xUnit + FluentAssertions (22 pruebas de Core y Data).
   no dependan de clases estáticas: `MainViewModel` solo usa `IAstronomyService`.
 - **Noche de observación.** La curva y los eventos (salida, culminación, puesta)
   cubren de 18:00 a 06:00. Una hora antes del mediodía pertenece a la noche que
-  empezó el día anterior (las 02:00 del día 5 son la noche del 4 al 5).
+  empezó el día anterior (las 02:00 del día 5 son la noche del 4 al 5). Esta
+  lógica vive en Core (`ObservationNight`, `IAstronomyService.GetNightEvents`)
+  para poder probarla; un evento fuera de la ventana es `null` (p. ej. M42 en
+  diciembre se pone después de las 06:00).
+- **Validación de entrada.** Los ViewModels heredan de `ObservableValidator` con
+  `[Range]`. Con un valor inválido (p. ej. altitud mínima 120) se muestra un
+  aviso y la tabla y el gráfico conservan el último cálculo válido en lugar de
+  vaciarse.
+- **Errores y registro.** `App` captura las excepciones no controladas (interfaz,
+  dominio y tareas), las registra en `%LocalAppData%\AstroPlanner\logs` y avisa
+  al usuario sin cerrar la aplicación. Los errores ya controlados (catálogo,
+  ciudades, guardado) también se registran.
+- **Catálogos incrustados.** Los JSON de `SeedData` van como recursos del
+  ensamblado: el .exe publicado es un único archivo. Los repositorios aceptan
+  una ruta explícita, que tiene prioridad (la usan las pruebas).
 - **Fecha/hora "de pared" → UTC.** El usuario elige hora local del observador;
   se guarda `TimeZoneId` en la configuración y se convierte a UTC con
   `TimeZoneInfo.ConvertTimeToUtc` antes de cualquier cálculo astronómico. Las
@@ -119,15 +141,20 @@ dotnet test AstroPlanner.Tests --filter "FullyQualifiedName~AstronomyMathTests|F
 | Tests | Microsoft.NET.Test.Sdk | 18.11.0 |
 | Tests | coverlet.collector | 6.0.4 |
 
-## Siguientes pasos pendientes del MVP
+## Hoja de ruta
 
-1. Refinar validación de entrada de la tabla (avisar de coordenadas inválidas
-   en la propia tabla en lugar de vaciarla en silencio).
-2. Modo "en tiempo real" con actualización automática periódica.
-3. Más pruebas de referencia contra efemérides publicadas (p. ej. posiciones de
-   M31/M42 verificadas en Stellarium para instantes concretos).
-4. Estilo Fluent/Windows 11 (p. ej. con Wpf.Ui, aún no instalado).
-5. Empaquetado (MSIX/installer) y publicación en GitHub con capturas.
+**0.5: astronomía más realista**
+- Sol: puesta, salida y crepúsculo astronómico (−18°); la ventana nocturna y el
+  gráfico usan la oscuridad real en lugar de 18:00–06:00.
+- Luna: posición, fase, iluminación y distancia a cada objeto.
+- Precesión J2000 → fecha y refracción atmosférica.
+- Pruebas de referencia contra Stellarium (M31, M42, puesta de Sol en CDMX).
 
-> Fases futuras (fuera del MVP): carta polar 2D, efemérides de Luna/planetas,
-> bitácora de observaciones, pronóstico meteorológico.
+**0.6: usabilidad**
+- Búsqueda por nombre/id y filtro de magnitud.
+- Modo tiempo real (actualización cada minuto).
+- Mi plan: orden por culminación, notas, exportar a CSV, imprimir.
+- Carta polar 2D del cielo.
+
+**0.7 y siguientes:** bitácora de observaciones, pronóstico de nubes
+(Open-Meteo), planetas, instalador con aviso de nueva versión, estilo Fluent.

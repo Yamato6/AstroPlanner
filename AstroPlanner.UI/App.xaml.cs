@@ -1,4 +1,5 @@
 ﻿using System.Windows;
+using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using AstroPlanner.Core.Interfaces;
 using AstroPlanner.Core.Services;
@@ -16,6 +17,7 @@ namespace AstroPlanner.UI;
 public partial class App : Application
 {
     private ServiceProvider? _serviceProvider;
+    private IAppLogger? _logger;
 
     public App()
     {
@@ -26,6 +28,9 @@ public partial class App : Application
 
     private static void ConfigureServices(IServiceCollection services)
     {
+        // Registro de errores (archivo diario en %LocalAppData%\AstroPlanner\logs)
+        services.AddSingleton<IAppLogger, FileAppLogger>();
+
         // Datos
         services.AddSingleton<ICelestialRepository, JsonCelestialRepository>();
         services.AddSingleton<ICityRepository, JsonCityRepository>();
@@ -51,9 +56,42 @@ public partial class App : Application
 
         if (_serviceProvider is null) return;
 
+        _logger = _serviceProvider.GetRequiredService<IAppLogger>();
+        _logger.Info($"AstroPlanner {typeof(App).Assembly.GetName().Version} iniciado.");
+        DispatcherUnhandledException += OnDispatcherUnhandledException;
+        AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
+        TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
+
         var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
         mainWindow.DataContext = _serviceProvider.GetRequiredService<MainViewModel>();
         mainWindow.Show();
+    }
+
+    /// <summary>
+    /// Error no controlado en el hilo de la interfaz: se registra, se avisa al
+    /// usuario y la aplicación sigue abierta en lugar de cerrarse sin explicación.
+    /// </summary>
+    private void OnDispatcherUnhandledException(object sender, DispatcherUnhandledExceptionEventArgs e)
+    {
+        _logger?.Error("Error no controlado en la interfaz.", e.Exception);
+        MessageBox.Show(
+            "Ocurrió un error inesperado. La aplicación seguirá abierta, pero si el problema "
+            + "se repite revisa el registro en:\n"
+            + _logger?.LogLocation,
+            "AstroPlanner",
+            MessageBoxButton.OK,
+            MessageBoxImage.Error);
+        e.Handled = true;
+    }
+
+    /// <summary>Error fatal fuera del hilo de la interfaz: solo puede registrarse.</summary>
+    private void OnDomainUnhandledException(object sender, UnhandledExceptionEventArgs e) =>
+        _logger?.Error("Error fatal no controlado.", e.ExceptionObject as Exception);
+
+    private void OnUnobservedTaskException(object? sender, UnobservedTaskExceptionEventArgs e)
+    {
+        _logger?.Error("Error no observado en una tarea en segundo plano.", e.Exception);
+        e.SetObserved();
     }
 
     protected override void OnExit(ExitEventArgs e)

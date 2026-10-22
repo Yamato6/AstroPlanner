@@ -1,31 +1,37 @@
 using System.Collections.ObjectModel;
+using System.ComponentModel.DataAnnotations;
 using System.IO;
 using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
+using AstroPlanner.Core.Algorithms;
 using AstroPlanner.Core.Interfaces;
 using AstroPlanner.Core.Models;
 using AstroPlanner.UI.Services;
 
 namespace AstroPlanner.UI.ViewModels;
 
-public partial class MainViewModel : ObservableObject
+public partial class MainViewModel : ObservableValidator
 {
     private readonly ICelestialRepository _repository;
     private readonly IAstronomyService _astronomy;
     private readonly IObservationPlanService _planService;
+    private readonly IAppLogger _logger;
     private readonly List<CelestialObjectRowViewModel> _allObjects = [];
     private IReadOnlyList<string> _constellationFilters = [""];
+    private CelestialObjectObservation? _selectedObservation;
 
     public MainViewModel(
         ICelestialRepository repository,
         IAstronomyService astronomy,
         IObservationPlanService planService,
+        IAppLogger logger,
         SettingsViewModel settings)
     {
         _repository = repository;
         _astronomy = astronomy;
         _planService = planService;
+        _logger = logger;
         Settings = settings;
 
         // La configuración persistida manda sobre los valores en runtime.
@@ -75,14 +81,30 @@ public partial class MainViewModel : ObservableObject
 
     public int VisibleObjectsCount => _allObjects.Count(item => item.IsVisible);
 
-    public CelestialObjectObservation? SelectedObservation => GetObservation(SelectedObject);
+    /// <summary>
+    /// Detalle del objeto seleccionado. Se calcula una sola vez por cambio
+    /// (ver <see cref="UpdateSelectedObservation"/>), no en cada lectura del binding.
+    /// </summary>
+    public CelestialObjectObservation? SelectedObservation => _selectedObservation;
     public bool HasSelectedObject => SelectedObject is not null;
 
-    [ObservableProperty] private double latitude;
-    [ObservableProperty] private double longitude;
+    [ObservableProperty, NotifyDataErrorInfo]
+    [Range(-90, 90, ErrorMessage = "La latitud debe estar entre -90 y 90°.")]
+    private double latitude;
+
+    [ObservableProperty, NotifyDataErrorInfo]
+    [Range(-180, 180, ErrorMessage = "La longitud debe estar entre -180 y 180°.")]
+    private double longitude;
+
     [ObservableProperty] private double elevation;
     [ObservableProperty] private DateTime observationDateTime;
-    [ObservableProperty] private double minimumAltitude;
+
+    [ObservableProperty, NotifyDataErrorInfo]
+    [Range(0, 90, ErrorMessage = "La altitud mínima debe estar entre 0 y 90°.")]
+    private double minimumAltitude;
+
+    /// <summary>Aviso de entrada inválida; mientras exista, la tabla conserva el último cálculo válido.</summary>
+    [ObservableProperty] private string? validationMessage;
     [ObservableProperty] private string timeZoneId = TimeZoneInfo.Local.Id;
     [ObservableProperty] private bool onlyVisible;
     [ObservableProperty] private string typeFilter = "All";
@@ -126,50 +148,38 @@ public partial class MainViewModel : ObservableObject
     }
 
     /// <summary>Zona horaria efectiva (la configurada, con reserva a la local).</summary>
-    private TimeZoneInfo EffectiveTimeZone
-    {
-        get
-        {
-            try
-            {
-                return TimeZoneInfo.FindSystemTimeZoneById(TimeZoneId);
-            }
-            catch (Exception ex) when (ex is TimeZoneNotFoundException or InvalidTimeZoneException)
-            {
-                return TimeZoneInfo.Local;
-            }
-        }
-    }
+    private TimeZoneInfo EffectiveTimeZone => TimeZoneConversion.FindOrLocal(TimeZoneId);
+
+    private DateTime ToUtc(DateTime localWallClock) =>
+        TimeZoneConversion.ToUtc(localWallClock, EffectiveTimeZone);
+
+    /// <summary>Inicio (18:00 local) de la noche que contiene <see cref="ObservationDateTime"/>.</summary>
+    private DateTime NightStartLocal => ObservationNight.GetNightStartLocal(ObservationDateTime);
 
     /// <summary>
-    /// Convierte una fecha/hora "de pared" elegida por el usuario (en la zona
-    /// horaria del observador) a UTC, que es lo que requieren los cálculos.
+    /// Mensaje de la primera entrada inválida, o null si todo es válido.
+    /// Se comprueba aquí además de con [Range] para no depender del orden en
+    /// que el toolkit valida y notifica los cambios.
     /// </summary>
-    private DateTime ToUtc(DateTime localWallClock)
+    private string? GetInputError()
     {
-        var wallClock = DateTime.SpecifyKind(localWallClock, DateTimeKind.Unspecified);
-        var timeZone = EffectiveTimeZone;
-
-        // Una hora inexistente ocurre durante el cambio a horario de verano.
-        // Se desplaza a la primera hora válida para mantener el cálculo usable.
-        if (timeZone.IsInvalidTime(wallClock))
+        if (double.IsNaN(Latitude) || Latitude is < -90 or > 90)
         {
-            wallClock = wallClock.AddHours(1);
+            return "La latitud debe estar entre -90 y 90°. Revisa la configuración.";
         }
 
-        // Para una hora ambigua (fin del horario de verano), ConvertTimeToUtc
-        // aplica de forma determinista el desplazamiento estándar de la zona.
-        return TimeZoneInfo.ConvertTimeToUtc(wallClock, timeZone);
-    }
+        if (double.IsNaN(Longitude) || Longitude is < -180 or > 180)
+        {
+            return "La longitud debe estar entre -180 y 180°. Revisa la configuración.";
+        }
 
-    /// <summary>
-    /// Inicio (18:00 local) de la noche que contiene <see cref="ObservationDateTime"/>.
-    /// Antes del mediodía se considera parte de la noche que empezó el día anterior,
-    /// para que una hora como 02:00 caiga dentro de su propia noche.
-    /// </summary>
-    private DateTime NightStartLocal =>
-        (ObservationDateTime.Hour < 12 ? ObservationDateTime.Date.AddDays(-1) : ObservationDateTime.Date)
-            .AddHours(18);
+        if (double.IsNaN(MinimumAltitude) || MinimumAltitude is < 0 or > 90)
+        {
+            return "La altitud mínima debe estar entre 0 y 90°.";
+        }
+
+        return null;
+    }
 
     /// <summary>
     /// Serie de altitud a lo largo de la noche (18:00 → 06:00) en hora local
@@ -177,88 +187,55 @@ public partial class MainViewModel : ObservableObject
     /// </summary>
     public IReadOnlyList<(DateTime LocalTime, double AltitudeDegrees)> GetNightAltitudeCurve()
     {
-        if (SelectedObject is null || Latitude is < -90 or > 90 || Longitude is < -180 or > 180)
+        if (SelectedObject is null || GetInputError() is not null)
         {
             return [];
         }
 
-        var observer = new ObserverLocation(Latitude, Longitude, Elevation);
-        var start = NightStartLocal;
-        var celestialObject = SelectedObject.Object;
-        var points = new List<(DateTime LocalTime, double AltitudeDegrees)>();
-
         // 25 puntos: 18:00, 18:30, ..., 06:00 (12 horas cada 30 min).
-        for (var index = 0; index <= 24; index++)
-        {
-            var localTime = start.AddMinutes(index * 30);
-            var utcTime = ToUtc(localTime);
-            var horizontal = _astronomy.GetHorizontal(celestialObject, observer, utcTime);
-            points.Add((localTime, horizontal.AltitudeDegrees));
-        }
-
-        return points;
+        return _astronomy.GetNightAltitudeSeries(
+            SelectedObject.Object,
+            new ObserverLocation(Latitude, Longitude, Elevation),
+            NightStartLocal,
+            EffectiveTimeZone,
+            TimeSpan.FromMinutes(30));
     }
 
     public CelestialObjectObservation? GetObservation(CelestialObjectRowViewModel? item)
     {
-        if (item is null || Latitude is < -90 or > 90 || Longitude is < -180 or > 180)
+        if (item is null || GetInputError() is not null)
         {
             return null;
         }
 
         var observer = new ObserverLocation(Latitude, Longitude, Elevation);
-        var start = NightStartLocal;
-        var samples = new List<(DateTime LocalTime, HorizontalCoordinates Coordinates)>();
-
-        for (var index = 0; index <= 48; index++)
-        {
-            var localTime = start.AddMinutes(index * 15);
-            var horizontal = _astronomy.GetHorizontal(item.Object, observer, ToUtc(localTime));
-            samples.Add((localTime, horizontal));
-        }
+        var events = _astronomy.GetNightEvents(
+            item.Object,
+            observer,
+            NightStartLocal,
+            EffectiveTimeZone,
+            MinimumAltitude);
 
         // Posición en el instante exacto elegido, igual que en la tabla.
         var current = _astronomy.GetHorizontal(item.Object, observer, ToUtc(ObservationDateTime));
-        var maximum = samples.MaxBy(sample => sample.Coordinates.AltitudeDegrees);
-        var rise = FindCrossing(samples, 0, entering: true);
-        var visibilityStart = FindCrossing(samples, MinimumAltitude, entering: true);
-        var set = FindCrossing(samples, 0, entering: false);
 
         return new CelestialObjectObservation
         {
             Object = item.Object,
             Coordinates = current,
             IsVisible = current.AltitudeDegrees >= MinimumAltitude,
-            RiseTimeLocal = rise,
-            VisibilityStartTimeLocal = visibilityStart,
-            BestObservationTimeLocal = maximum.LocalTime,
-            SetTimeLocal = set,
-            MaximumAltitudeDegrees = maximum.Coordinates.AltitudeDegrees
+            RiseTimeLocal = events.RiseLocal,
+            VisibilityStartTimeLocal = events.ThresholdCrossingLocal,
+            BestObservationTimeLocal = events.CulminationLocal,
+            SetTimeLocal = events.SetLocal,
+            MaximumAltitudeDegrees = events.MaximumAltitudeDegrees
         };
     }
 
-    private static DateTime? FindCrossing(
-        IReadOnlyList<(DateTime LocalTime, HorizontalCoordinates Coordinates)> samples,
-        double altitude,
-        bool entering)
+    private void UpdateSelectedObservation()
     {
-        for (var index = 1; index < samples.Count; index++)
-        {
-            var previous = samples[index - 1];
-            var current = samples[index];
-            var previousDelta = previous.Coordinates.AltitudeDegrees - altitude;
-            var currentDelta = current.Coordinates.AltitudeDegrees - altitude;
-
-            if ((entering && previousDelta < 0 && currentDelta >= 0)
-                || (!entering && previousDelta >= 0 && currentDelta < 0))
-            {
-                var fraction = previousDelta / (previousDelta - currentDelta);
-                return previous.LocalTime.AddMinutes(
-                    (current.LocalTime - previous.LocalTime).TotalMinutes * fraction);
-            }
-        }
-
-        return null;
+        _selectedObservation = GetObservation(SelectedObject);
+        OnPropertyChanged(nameof(SelectedObservation));
     }
 
     [RelayCommand]
@@ -281,6 +258,7 @@ public partial class MainViewModel : ObservableObject
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or JsonException)
         {
+            _logger.Error("No se pudo cargar el catálogo Messier.", ex);
             ErrorMessage = $"No se pudo cargar el catálogo: {ex.Message}";
         }
         finally { IsBusy = false; }
@@ -314,9 +292,9 @@ public partial class MainViewModel : ObservableObject
     partial void OnConstellationFilterChanged(string value) => RecalculateAndFilter();
     partial void OnSelectedObjectChanged(CelestialObjectRowViewModel? value)
     {
-        OnPropertyChanged(nameof(SelectedObject));
-        OnPropertyChanged(nameof(SelectedObservation));
         OnPropertyChanged(nameof(HasSelectedObject));
+        OnPropertyChanged(nameof(IsSelectedObjectInObservationPlan));
+        UpdateSelectedObservation();
     }
 
     [RelayCommand]
@@ -363,8 +341,9 @@ public partial class MainViewModel : ObservableObject
         {
             _planService.Save(ObservationPlan.Select(item => item.Id));
         }
-        catch (IOException ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
+            _logger.Error("No se pudo guardar el plan de observación.", ex);
             ErrorMessage = $"No se pudo guardar el plan: {ex.Message}";
         }
     }
@@ -390,9 +369,12 @@ public partial class MainViewModel : ObservableObject
         OnPropertyChanged(nameof(ActiveLocationName));
         OnPropertyChanged(nameof(CatalogCount));
         OnPropertyChanged(nameof(VisibleObjectsCount));
-        if (_allObjects.Count == 0 || Latitude is < -90 or > 90 || Longitude is < -180 or > 180)
+
+        // Con una entrada inválida se avisa y se conserva el último cálculo
+        // válido, en lugar de vaciar la tabla sin explicación.
+        ValidationMessage = GetInputError();
+        if (_allObjects.Count == 0 || ValidationMessage is not null)
         {
-            Objects.Clear();
             return;
         }
 
@@ -420,14 +402,20 @@ public partial class MainViewModel : ObservableObject
             Objects.Add(item);
         }
 
-        SelectedObject ??= Objects.FirstOrDefault();
-        if (SelectedObject is not null && !Objects.Contains(SelectedObject))
-        {
-            SelectedObject = Objects.FirstOrDefault();
-        }
+        var selection = SelectedObject is not null && Objects.Contains(SelectedObject)
+            ? SelectedObject
+            : Objects.FirstOrDefault();
 
-        OnPropertyChanged(nameof(SelectedObservation));
-        OnPropertyChanged(nameof(IsSelectedObjectInObservationPlan));
+        if (!ReferenceEquals(selection, SelectedObject))
+        {
+            // El cambio de selección ya recalcula el detalle.
+            SelectedObject = selection;
+        }
+        else
+        {
+            UpdateSelectedObservation();
+            OnPropertyChanged(nameof(IsSelectedObjectInObservationPlan));
+        }
     }
 }
 

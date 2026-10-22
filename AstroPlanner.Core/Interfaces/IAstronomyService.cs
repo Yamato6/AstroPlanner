@@ -32,4 +32,28 @@ public interface IAstronomyService
         DateTime inicioUtc,
         DateTime finUtc,
         TimeSpan paso);
+
+    /// <summary>
+    /// Serie de altitud a lo largo de la noche que empieza en
+    /// <paramref name="inicioNocheLocal"/> (hora local de <paramref name="zonaHoraria"/>),
+    /// muestreada cada <paramref name="paso"/> en hora local.
+    /// </summary>
+    IReadOnlyList<(DateTime LocalTime, double AltitudeDegrees)> GetNightAltitudeSeries(
+        CelestialObject objeto,
+        ObserverLocation observador,
+        DateTime inicioNocheLocal,
+        TimeZoneInfo zonaHoraria,
+        TimeSpan paso);
+
+    /// <summary>
+    /// Salida, cruce del umbral de altitud, culminación y puesta de
+    /// <paramref name="objeto"/> durante la noche que empieza en
+    /// <paramref name="inicioNocheLocal"/>.
+    /// </summary>
+    ObjectNightEvents GetNightEvents(
+        CelestialObject objeto,
+        ObserverLocation observador,
+        DateTime inicioNocheLocal,
+        TimeZoneInfo zonaHoraria,
+        double altitudMinimaDegrees);
 }

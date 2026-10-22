@@ -89,6 +89,13 @@ public partial class MainWindow : Window
     private void UpdateChart(MainViewModel viewModel)
     {
         var points = viewModel.GetNightAltitudeCurve();
+
+        // Con una entrada inválida se conserva la última curva, igual que la tabla.
+        if (points.Count == 0 && viewModel.ValidationMessage is not null)
+        {
+            return;
+        }
+
         AltitudePlot.Plot.Clear();
         AltitudePlot.Plot.FigureBackground.Color = ScottPlot.Color.FromHex("#172033");
         AltitudePlot.Plot.DataBackground.Color = ScottPlot.Color.FromHex("#0F1B2D");

@@ -1,4 +1,5 @@
-﻿using System.IO;
+﻿using System.ComponentModel.DataAnnotations;
+using System.IO;
 using System.Text.Json;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
@@ -12,15 +13,20 @@ namespace AstroPlanner.UI.ViewModels;
 /// zona horaria y umbral de altitud. Persiste la configuración y notifica
 /// al ViewModel principal mediante <see cref="SettingsSaved"/>.
 /// </summary>
-public partial class SettingsViewModel : ObservableObject
+public partial class SettingsViewModel : ObservableValidator
 {
     private readonly Services.ISettingsService _settingsService;
     private readonly ICityRepository _cityRepository;
+    private readonly Services.IAppLogger _logger;
 
-    public SettingsViewModel(Services.ISettingsService settingsService, ICityRepository cityRepository)
+    public SettingsViewModel(
+        Services.ISettingsService settingsService,
+        ICityRepository cityRepository,
+        Services.IAppLogger logger)
     {
         _settingsService = settingsService;
         _cityRepository = cityRepository;
+        _logger = logger;
         LoadFrom(_settingsService.Load());
     }
 
@@ -35,11 +41,23 @@ public partial class SettingsViewModel : ObservableObject
 
     public IReadOnlyList<City> Cities { get; private set; } = Array.Empty<City>();
 
-    [ObservableProperty] private double latitude;
-    [ObservableProperty] private double longitude;
-    [ObservableProperty] private double elevation;
+    [ObservableProperty, NotifyDataErrorInfo]
+    [Range(-90, 90, ErrorMessage = "La latitud debe estar entre -90 y 90°.")]
+    private double latitude;
+
+    [ObservableProperty, NotifyDataErrorInfo]
+    [Range(-180, 180, ErrorMessage = "La longitud debe estar entre -180 y 180°.")]
+    private double longitude;
+
+    [ObservableProperty, NotifyDataErrorInfo]
+    [Range(-500, 9000, ErrorMessage = "La elevación debe estar entre -500 y 9000 m.")]
+    private double elevation;
+
     [ObservableProperty] private string timeZoneId = TimeZoneInfo.Local.Id;
-    [ObservableProperty] private double minimumAltitude = 20;
+
+    [ObservableProperty, NotifyDataErrorInfo]
+    [Range(0, 90, ErrorMessage = "La altitud mínima debe estar entre 0 y 90°.")]
+    private double minimumAltitude = 20;
     [ObservableProperty] private City? selectedCity;
     [ObservableProperty] private bool isManualLocation;
     [ObservableProperty] private string? statusMessage;
@@ -78,6 +96,7 @@ public partial class SettingsViewModel : ObservableObject
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or JsonException)
         {
+            _logger.Error("No se pudo cargar el catálogo de ciudades.", ex);
             HasError = true;
             StatusMessage = $"No se pudo cargar el catálogo de ciudades: {ex.Message}";
         }
@@ -119,10 +138,11 @@ public partial class SettingsViewModel : ObservableObject
     {
         try
         {
-            if (Latitude is < -90 or > 90 || Longitude is < -180 or > 180)
+            ValidateAllProperties();
+            if (HasErrors)
             {
                 HasError = true;
-                StatusMessage = "Latitud deben estar entre -90 y 90; longitud entre -180 y 180.";
+                StatusMessage = GetErrors().First().ErrorMessage;
                 return;
             }
 
@@ -142,8 +162,9 @@ public partial class SettingsViewModel : ObservableObject
             StatusMessage = "Configuración guardada.";
             SettingsSaved?.Invoke(settings);
         }
-        catch (IOException ex)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
+            _logger.Error("No se pudo guardar la configuración.", ex);
             HasError = true;
             StatusMessage = $"No se pudo guardar: {ex.Message}";
         }

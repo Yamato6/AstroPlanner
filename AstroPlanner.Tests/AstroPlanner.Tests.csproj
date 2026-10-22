@@ -1,7 +1,8 @@
 ﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
+    <!-- net8.0-windows para poder probar los ViewModels y servicios de AstroPlanner.UI (WPF). -->
+    <TargetFramework>net8.0-windows</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
@@ -22,6 +23,7 @@
   <ItemGroup>
     <ProjectReference Include="..\AstroPlanner.Core\AstroPlanner.Core.csproj" />
     <ProjectReference Include="..\AstroPlanner.Data\AstroPlanner.Data.csproj" />
+    <ProjectReference Include="..\AstroPlanner.UI\AstroPlanner.UI.csproj" />
   </ItemGroup>
 
 </Project>

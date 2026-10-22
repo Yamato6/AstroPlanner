@@ -1,0 +1,217 @@
+using AstroPlanner.Core.Interfaces;
+using AstroPlanner.Core.Models;
+using AstroPlanner.Core.Services;
+using AstroPlanner.UI.Services;
+using AstroPlanner.UI.ViewModels;
+using FluentAssertions;
+
+namespace AstroPlanner.Tests;
+
+/// <summary>
+/// Pruebas de MainViewModel y SettingsViewModel sin interfaz, con dobles en
+/// memoria para catálogo, configuración, plan y registro.
+/// </summary>
+public sealed class ViewModelTests
+{
+    private static readonly CelestialObject M42 = new(
+        "M42", "Nebulosa de Orión", "Orion", CelestialObjectType.DiffuseNebula, 4.0,
+        new EquatorialCoordinates(5.59, -5.39));
+
+    private static readonly CelestialObject M31 = new(
+        "M31", "Galaxia de Andrómeda", "Andromeda", CelestialObjectType.Galaxy, 3.4,
+        new EquatorialCoordinates(0.712, 41.27));
+
+    private static readonly CelestialObject M13 = new(
+        "M13", "Gran Cúmulo de Hércules", "Hercules", CelestialObjectType.GlobularCluster, 5.8,
+        new EquatorialCoordinates(16.69, 36.46));
+
+    private readonly FakeSettingsService _settingsService = new(new ObserverSettings { MinimumAltitude = 35 });
+    private readonly FakePlanService _planService = new();
+
+    private SettingsViewModel CreateSettings() =>
+        new(_settingsService, new FakeCityRepository(), new NullLogger());
+
+    private async Task<MainViewModel> CreateLoadedMainAsync()
+    {
+        var viewModel = new MainViewModel(
+            new FakeCelestialRepository([M42, M31, M13]),
+            new AstronomyService(),
+            _planService,
+            new NullLogger(),
+            CreateSettings());
+        // Noche de invierno en CDMX: M42 alta, M13 bajo el horizonte.
+        viewModel.ObservationDateTime = new DateTime(2026, 1, 15, 22, 0, 0);
+        await viewModel.LoadCommand.ExecuteAsync(null);
+        return viewModel;
+    }
+
+    [Fact]
+    public async Task Load_FillsTableSortedByAltitudeAndSelectsFirstRow()
+    {
+        var viewModel = await CreateLoadedMainAsync();
+
+        viewModel.CatalogCount.Should().Be(3);
+        viewModel.Objects.Should().HaveCount(3);
+        viewModel.Objects.Select(o => o.AltitudeDegrees).Should().BeInDescendingOrder();
+        viewModel.SelectedObject.Should().BeSameAs(viewModel.Objects[0]);
+        viewModel.SelectedObservation.Should().NotBeNull();
+        viewModel.ValidationMessage.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task SelectedObservation_MatchesTablePosition()
+    {
+        var viewModel = await CreateLoadedMainAsync();
+
+        var row = viewModel.SelectedObject!;
+        var detail = viewModel.SelectedObservation!;
+
+        detail.Coordinates.AltitudeDegrees.Should().BeApproximately(row.AltitudeDegrees, 1e-9);
+        detail.Coordinates.AzimuthDegrees.Should().BeApproximately(row.AzimuthDegrees, 1e-9);
+    }
+
+    [Fact]
+    public async Task OnlyVisible_HidesObjectsBelowThreshold()
+    {
+        var viewModel = await CreateLoadedMainAsync();
+
+        viewModel.OnlyVisible = true;
+
+        viewModel.Objects.Should().NotBeEmpty().And.OnlyContain(o => o.IsVisible);
+        viewModel.Objects.Should().NotContain(o => o.Id == "M13");
+    }
+
+    [Fact]
+    public async Task ResetFilters_RestoresSavedMinimumAltitude()
+    {
+        var viewModel = await CreateLoadedMainAsync();
+        viewModel.MinimumAltitude = 60;
+        viewModel.TypeFilter = nameof(CelestialObjectType.Galaxy);
+
+        viewModel.ResetFiltersCommand.Execute(null);
+
+        viewModel.MinimumAltitude.Should().Be(35);
+        viewModel.TypeFilter.Should().Be("All");
+        viewModel.Objects.Should().HaveCount(3);
+    }
+
+    [Fact]
+    public async Task InvalidMinimumAltitude_ShowsWarningAndKeepsLastTable()
+    {
+        var viewModel = await CreateLoadedMainAsync();
+        var before = viewModel.Objects.ToList();
+
+        viewModel.MinimumAltitude = 120;
+
+        viewModel.ValidationMessage.Should().Contain("altitud mínima");
+        viewModel.HasErrors.Should().BeTrue();
+        viewModel.Objects.Should().Equal(before);
+
+        viewModel.MinimumAltitude = 30;
+
+        viewModel.ValidationMessage.Should().BeNull();
+        viewModel.HasErrors.Should().BeFalse();
+    }
+
+    [Fact]
+    public async Task AfterMidnight_DetailUsesTheNightInProgress()
+    {
+        var viewModel = await CreateLoadedMainAsync();
+
+        viewModel.ObservationDateTime = new DateTime(2026, 1, 15, 2, 0, 0);
+
+        var culmination = viewModel.SelectedObservation!.BestObservationTimeLocal!.Value;
+        culmination.Should().BeOnOrAfter(new DateTime(2026, 1, 14, 18, 0, 0))
+            .And.BeOnOrBefore(new DateTime(2026, 1, 15, 6, 0, 0));
+        viewModel.GetNightAltitudeCurve()[0].LocalTime.Should().Be(new DateTime(2026, 1, 14, 18, 0, 0));
+    }
+
+    [Fact]
+    public async Task ObservationPlan_IsRestoredByIdAndSavedOnChanges()
+    {
+        _planService.Ids = ["M31", "M999"];
+        var viewModel = await CreateLoadedMainAsync();
+
+        viewModel.ObservationPlan.Select(o => o.Id).Should().Equal("M31");
+
+        viewModel.SelectedObject = viewModel.Objects.Single(o => o.Id == "M42");
+        viewModel.AddSelectedToObservationPlanCommand.Execute(null);
+
+        _planService.Ids.Should().Equal("M31", "M42");
+        viewModel.IsSelectedObjectInObservationPlan.Should().BeTrue();
+
+        viewModel.RemoveFromObservationPlanCommand.Execute(viewModel.ObservationPlan[0]);
+
+        _planService.Ids.Should().Equal("M42");
+    }
+
+    [Fact]
+    public void Settings_SaveWithInvalidLatitude_IsRejectedAndNotPersisted()
+    {
+        var settings = CreateSettings();
+        settings.UseManualLocationCommand.Execute(null);
+        settings.Latitude = 100;
+
+        settings.SaveCommand.Execute(null);
+
+        settings.HasError.Should().BeTrue();
+        settings.StatusMessage.Should().Contain("latitud");
+        _settingsService.SaveCount.Should().Be(0);
+    }
+
+    [Fact]
+    public void Settings_RevertChanges_DiscardsUnsavedEdits()
+    {
+        var settings = CreateSettings();
+        settings.MinimumAltitude = 70;
+
+        settings.RevertChanges();
+
+        settings.MinimumAltitude.Should().Be(35);
+    }
+
+    private sealed class FakeCelestialRepository(IReadOnlyList<CelestialObject> objects) : ICelestialRepository
+    {
+        public Task<IReadOnlyList<CelestialObject>> GetAllAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult(objects);
+    }
+
+    private sealed class FakeCityRepository : ICityRepository
+    {
+        public Task<IReadOnlyList<City>> GetAllAsync(CancellationToken cancellationToken = default) =>
+            Task.FromResult<IReadOnlyList<City>>([]);
+    }
+
+    private sealed class FakeSettingsService(ObserverSettings saved) : ISettingsService
+    {
+        private ObserverSettings _saved = saved;
+
+        public int SaveCount { get; private set; }
+
+        public ObserverSettings Load() => _saved;
+
+        public void Save(ObserverSettings settings)
+        {
+            _saved = settings;
+            SaveCount++;
+        }
+    }
+
+    private sealed class FakePlanService : IObservationPlanService
+    {
+        public List<string> Ids { get; set; } = [];
+
+        public IReadOnlyList<string> Load() => Ids;
+
+        public void Save(IEnumerable<string> objectIds) => Ids = objectIds.ToList();
+    }
+
+    private sealed class NullLogger : IAppLogger
+    {
+        public string LogLocation => "";
+
+        public void Info(string message) { }
+
+        public void Error(string message, Exception? exception = null) { }
+    }
+}
