@@ -56,6 +56,8 @@ public class AstronomyServiceTests
     private static readonly TimeZoneInfo MadridZone =
         TimeZoneInfo.FindSystemTimeZoneById("Romance Standard Time");
 
+    private static readonly DateTime NightStart = new(2023, 12, 15, 18, 0, 0);
+
     private static CelestialObject ObjectAt(double raHours, double decDegrees) => new(
         "TEST",
         "Objeto de prueba",
@@ -65,11 +67,11 @@ public class AstronomyServiceTests
         new EquatorialCoordinates(raHours, decDegrees));
 
     [Fact]
-    public void GetNightAltitudeSeries_CoversSixPmToSixAmInLocalTime()
+    public void GetNightAltitudeSeries_CoversTheRequestedLocalWindow()
     {
         var start = new DateTime(2023, 12, 15, 18, 0, 0);
 
-        var series = _service.GetNightAltitudeSeries(_m42, _madrid, start, MadridZone, TimeSpan.FromMinutes(30));
+        var series = _service.GetNightAltitudeSeries(_m42, _madrid, start, start.AddHours(12), MadridZone, TimeSpan.FromMinutes(30));
 
         series.Should().HaveCount(25);
         series[0].LocalTime.Should().Be(start);
@@ -81,7 +83,7 @@ public class AstronomyServiceTests
     {
         var start = new DateTime(2023, 12, 15, 18, 0, 0);
 
-        var events = _service.GetNightEvents(_m42, _madrid, start, MadridZone, 20);
+        var events = _service.GetNightEvents(_m42, _madrid, start, start.AddHours(12), MadridZone, 20);
 
         // Altitud de culminación = 90 - latitud + declinación = 90 - 40.4 - 5.39 ≈ 44.2°.
         events.MaximumAltitudeDegrees.Should().BeApproximately(44.2, 1.0);
@@ -99,7 +101,7 @@ public class AstronomyServiceTests
         var observer = new ObserverLocation(50, 0);
 
         var events = _service.GetNightEvents(
-            ObjectAt(3, 85), observer, new DateTime(2023, 12, 15, 18, 0, 0), MadridZone, 20);
+            ObjectAt(3, 85), observer, NightStart, NightStart.AddHours(12), MadridZone, 20);
 
         events.RiseLocal.Should().BeNull();
         events.SetLocal.Should().BeNull();
@@ -113,7 +115,7 @@ public class AstronomyServiceTests
         var observer = new ObserverLocation(40, 0);
 
         var events = _service.GetNightEvents(
-            ObjectAt(3, -80), observer, new DateTime(2023, 12, 15, 18, 0, 0), MadridZone, 20);
+            ObjectAt(3, -80), observer, NightStart, NightStart.AddHours(12), MadridZone, 20);
 
         events.MaximumAltitudeDegrees.Should().BeLessThan(0);
         events.RiseLocal.Should().BeNull();

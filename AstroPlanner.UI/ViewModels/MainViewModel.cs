@@ -34,7 +34,10 @@ public partial class MainViewModel : ObservableValidator
         _logger = logger;
         Settings = settings;
 
-        // La configuración persistida manda sobre los valores en runtime.
+        // La configuración persistida manda sobre los valores en runtime. Se
+        // asigna todo antes de calcular: con valores a medias (p. ej. la fecha
+        // aún en DateTime.MinValue) el cálculo de la noche no es válido.
+        _isInitializing = true;
         Latitude = settings.Latitude;
         Longitude = settings.Longitude;
         Elevation = settings.Elevation;
@@ -42,9 +45,13 @@ public partial class MainViewModel : ObservableValidator
         TimeZoneId = settings.TimeZoneId;
         ObservationDateTime = DateTime.Now;
         TypeFilter = "All";
+        _isInitializing = false;
+        RecalculateAndFilter();
 
         settings.SettingsSaved += OnSettingsSaved;
     }
+
+    private bool _isInitializing;
 
     /// <summary>Pestaña de Configuración, compartida con la vista.</summary>
     public SettingsViewModel Settings { get; }
@@ -153,8 +160,98 @@ public partial class MainViewModel : ObservableValidator
     private DateTime ToUtc(DateTime localWallClock) =>
         TimeZoneConversion.ToUtc(localWallClock, EffectiveTimeZone);
 
-    /// <summary>Inicio (18:00 local) de la noche que contiene <see cref="ObservationDateTime"/>.</summary>
-    private DateTime NightStartLocal => ObservationNight.GetNightStartLocal(ObservationDateTime);
+    /// <summary>Distancia a la Luna por debajo de la cual se avisa de interferencia.</summary>
+    public const double MoonInterferenceSeparationDegrees = 30;
+
+    /// <summary>Iluminación mínima de la Luna (25 %) para que su brillo moleste.</summary>
+    public const double MoonInterferenceMinimumIllumination = 0.25;
+
+    private NightInfo? _night;
+    private MoonState? _moon;
+
+    /// <summary>Noche de observación (puesta → salida del Sol) de la fecha elegida.</summary>
+    public NightInfo? Night => _night;
+
+    /// <summary>La Luna en el instante elegido.</summary>
+    public MoonState? Moon => _moon;
+
+    /// <summary>Día, crepúsculo o noche oscura en el instante elegido.</summary>
+    [ObservableProperty] private SkyCondition skyCondition = SkyCondition.Dark;
+
+    public string ChartTitle => _night is null
+        ? "Altitud durante la noche"
+        : $"Altitud durante la noche ({_night.WindowStartLocal:HH:mm} → {_night.WindowEndLocal:HH:mm})";
+
+    public string DarkNightText => _night switch
+    {
+        null => "—",
+        { HasAstronomicalDarkness: true } => $"{_night.AstronomicalDuskLocal:HH:mm} → {_night.AstronomicalDawnLocal:HH:mm}",
+        _ => "Sin noche oscura"
+    };
+
+    public string SunTimesText => _night switch
+    {
+        null => "",
+        { IsFallbackWindow: true } => "El Sol no se pone o no sale: ventana 18:00 → 06:00",
+        _ => $"Puesta {_night.SunsetLocal:HH:mm} · Salida {_night.SunriseLocal:HH:mm}"
+    };
+
+    public string MoonIlluminationText => _moon is null ? "—" : $"{_moon.IlluminatedFraction * 100:0} %";
+
+    public string MoonDetailText => _moon is null
+        ? ""
+        : $"{DescribeMoonPhase(_moon.IlluminatedFraction, _moon.IsWaxing)} · "
+          + (_moon.IsAboveHorizon ? $"{_moon.Horizontal.AltitudeDegrees:0}° de altura" : "bajo el horizonte");
+
+    /// <summary>Aviso cuando a la hora elegida el cielo no está oscuro; null de noche.</summary>
+    public string? SkyBanner => (SkyCondition, _night) switch
+    {
+        (_, { HasAstronomicalDarkness: false }) when SkyCondition != SkyCondition.Day =>
+            "En esta fecha y lugar el Sol no baja de -18°: el cielo nunca está totalmente oscuro.",
+        (SkyCondition.Day, { HasAstronomicalDarkness: true }) =>
+            $"Es de día a esta hora. La noche oscura empieza a las {_night!.AstronomicalDuskLocal:HH:mm}.",
+        (SkyCondition.Day, _) => "Es de día a esta hora.",
+        (SkyCondition.Twilight, _) =>
+            $"Crepúsculo: el cielo aún no está oscuro (noche oscura de {_night!.AstronomicalDuskLocal:HH:mm} "
+            + $"a {_night.AstronomicalDawnLocal:HH:mm}).",
+        _ => null
+    };
+
+    /// <summary>Nombre de la fase lunar a partir de la fracción iluminada.</summary>
+    public static string DescribeMoonPhase(double illuminatedFraction, bool isWaxing) => illuminatedFraction switch
+    {
+        < 0.03 => "Luna nueva",
+        > 0.97 => "Luna llena",
+        < 0.47 => isWaxing ? "Creciente" : "Menguante",
+        <= 0.53 => isWaxing ? "Cuarto creciente" : "Cuarto menguante",
+        _ => isWaxing ? "Gibosa creciente" : "Gibosa menguante"
+    };
+
+    /// <summary>
+    /// True si la Luna está sobre el horizonte, bastante iluminada y a menos de
+    /// <see cref="MoonInterferenceSeparationDegrees"/> del objeto.
+    /// </summary>
+    public static bool MoonInterferes(MoonState moon, double separationDegrees) =>
+        moon.IsAboveHorizon
+        && moon.IlluminatedFraction >= MoonInterferenceMinimumIllumination
+        && separationDegrees < MoonInterferenceSeparationDegrees;
+
+    /// <summary>Recalcula noche, Luna y estado del cielo, y notifica los textos derivados.</summary>
+    private void UpdateSky(ObserverLocation observer, DateTime utc)
+    {
+        _night = _astronomy.GetNightInfo(observer, ObservationDateTime, EffectiveTimeZone);
+        _moon = _astronomy.GetMoon(observer, utc);
+        SkyCondition = _astronomy.GetSkyCondition(observer, utc);
+
+        OnPropertyChanged(nameof(Night));
+        OnPropertyChanged(nameof(Moon));
+        OnPropertyChanged(nameof(ChartTitle));
+        OnPropertyChanged(nameof(DarkNightText));
+        OnPropertyChanged(nameof(SunTimesText));
+        OnPropertyChanged(nameof(MoonIlluminationText));
+        OnPropertyChanged(nameof(MoonDetailText));
+        OnPropertyChanged(nameof(SkyBanner));
+    }
 
     /// <summary>
     /// Mensaje de la primera entrada inválida, o null si todo es válido.
@@ -181,29 +278,47 @@ public partial class MainViewModel : ObservableValidator
         return null;
     }
 
+    private static readonly TimeSpan CurveStep = TimeSpan.FromMinutes(20);
+
     /// <summary>
-    /// Serie de altitud a lo largo de la noche (18:00 → 06:00) en hora local
-    /// del observador, para dibujar la curva de tránsito.
+    /// Serie de altitud del objeto seleccionado de la puesta a la salida del
+    /// Sol, en hora local del observador, para dibujar la curva de tránsito.
     /// </summary>
     public IReadOnlyList<(DateTime LocalTime, double AltitudeDegrees)> GetNightAltitudeCurve()
     {
-        if (SelectedObject is null || GetInputError() is not null)
+        if (SelectedObject is null || _night is null || GetInputError() is not null)
         {
             return [];
         }
 
-        // 25 puntos: 18:00, 18:30, ..., 06:00 (12 horas cada 30 min).
         return _astronomy.GetNightAltitudeSeries(
             SelectedObject.Object,
             new ObserverLocation(Latitude, Longitude, Elevation),
-            NightStartLocal,
+            _night.WindowStartLocal,
+            _night.WindowEndLocal,
             EffectiveTimeZone,
-            TimeSpan.FromMinutes(30));
+            CurveStep);
+    }
+
+    /// <summary>Serie de altitud de la Luna en la misma ventana que <see cref="GetNightAltitudeCurve"/>.</summary>
+    public IReadOnlyList<(DateTime LocalTime, double AltitudeDegrees)> GetMoonAltitudeCurve()
+    {
+        if (_night is null || GetInputError() is not null)
+        {
+            return [];
+        }
+
+        return _astronomy.GetMoonAltitudeSeries(
+            new ObserverLocation(Latitude, Longitude, Elevation),
+            _night.WindowStartLocal,
+            _night.WindowEndLocal,
+            EffectiveTimeZone,
+            CurveStep);
     }
 
     public CelestialObjectObservation? GetObservation(CelestialObjectRowViewModel? item)
     {
-        if (item is null || GetInputError() is not null)
+        if (item is null || _night is null || GetInputError() is not null)
         {
             return null;
         }
@@ -212,12 +327,16 @@ public partial class MainViewModel : ObservableValidator
         var events = _astronomy.GetNightEvents(
             item.Object,
             observer,
-            NightStartLocal,
+            _night.WindowStartLocal,
+            _night.WindowEndLocal,
             EffectiveTimeZone,
             MinimumAltitude);
 
         // Posición en el instante exacto elegido, igual que en la tabla.
-        var current = _astronomy.GetHorizontal(item.Object, observer, ToUtc(ObservationDateTime));
+        var utc = ToUtc(ObservationDateTime);
+        var current = _astronomy.GetHorizontal(item.Object, observer, utc);
+        double? moonSeparation = _moon is null ? null : _astronomy.GetMoonSeparationDegrees(item.Object, _moon, utc);
+        var moonInterferes = _moon is not null && moonSeparation is not null && MoonInterferes(_moon, moonSeparation.Value);
 
         return new CelestialObjectObservation
         {
@@ -228,7 +347,12 @@ public partial class MainViewModel : ObservableValidator
             VisibilityStartTimeLocal = events.ThresholdCrossingLocal,
             BestObservationTimeLocal = events.CulminationLocal,
             SetTimeLocal = events.SetLocal,
-            MaximumAltitudeDegrees = events.MaximumAltitudeDegrees
+            MaximumAltitudeDegrees = events.MaximumAltitudeDegrees,
+            MoonSeparationDegrees = moonSeparation,
+            MoonWarning = moonInterferes
+                ? $"La Luna ({_moon!.IlluminatedFraction * 100:0} % iluminada) está a {moonSeparation:0}°: "
+                  + "su brillo dificulta la observación."
+                : null
         };
     }
 
@@ -365,6 +489,11 @@ public partial class MainViewModel : ObservableValidator
 
     private void RecalculateAndFilter()
     {
+        if (_isInitializing)
+        {
+            return;
+        }
+
         OnPropertyChanged(nameof(LocationSummary));
         OnPropertyChanged(nameof(ActiveLocationName));
         OnPropertyChanged(nameof(CatalogCount));
@@ -373,7 +502,7 @@ public partial class MainViewModel : ObservableValidator
         // Con una entrada inválida se avisa y se conserva el último cálculo
         // válido, en lugar de vaciar la tabla sin explicación.
         ValidationMessage = GetInputError();
-        if (_allObjects.Count == 0 || ValidationMessage is not null)
+        if (ValidationMessage is not null)
         {
             return;
         }
@@ -381,9 +510,22 @@ public partial class MainViewModel : ObservableValidator
         var observer = new ObserverLocation(Latitude, Longitude, Elevation);
         var utc = ToUtc(ObservationDateTime);
 
+        // La noche y la Luna no dependen del catálogo: la cabecera se rellena aunque aún no haya cargado.
+        UpdateSky(observer, utc);
+        if (_allObjects.Count == 0)
+        {
+            return;
+        }
+
+        var moon = _moon!;
         foreach (var item in _allObjects)
         {
-            item.UpdatePosition(_astronomy.GetHorizontal(item.Object, observer, utc), MinimumAltitude);
+            var separation = _astronomy.GetMoonSeparationDegrees(item.Object, moon, utc);
+            item.UpdatePosition(
+                _astronomy.GetHorizontal(item.Object, observer, utc),
+                MinimumAltitude,
+                separation,
+                MoonInterferes(moon, separation));
         }
 
         OnPropertyChanged(nameof(VisibleObjectsCount));
@@ -437,14 +579,26 @@ public partial class CelestialObjectRowViewModel : ObservableObject
     [ObservableProperty] private double azimuthDegrees;
     [ObservableProperty] private bool isVisible;
 
+    /// <summary>Distancia angular a la Luna (grados).</summary>
+    [ObservableProperty] private double moonSeparationDegrees;
+
+    /// <summary>True si la Luna, brillante y cercana, dificulta observar el objeto.</summary>
+    [ObservableProperty] private bool moonInterferes;
+
     public string VisibilityStatus => IsVisible ? "Visible" : "No visible";
 
     partial void OnIsVisibleChanged(bool value) => OnPropertyChanged(nameof(VisibilityStatus));
 
-    public void UpdatePosition(HorizontalCoordinates coordinates, double threshold)
+    public void UpdatePosition(
+        HorizontalCoordinates coordinates,
+        double threshold,
+        double moonSeparation,
+        bool moonInterferes)
     {
         AltitudeDegrees = coordinates.AltitudeDegrees;
         AzimuthDegrees = coordinates.AzimuthDegrees;
         IsVisible = AltitudeDegrees >= threshold;
+        MoonSeparationDegrees = moonSeparation;
+        MoonInterferes = moonInterferes;
     }
 }

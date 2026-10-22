@@ -120,10 +120,75 @@ public sealed class ViewModelTests
 
         viewModel.ObservationDateTime = new DateTime(2026, 1, 15, 2, 0, 0);
 
+        // La noche en curso va de la puesta del 14 a la salida del Sol del 15.
+        var night = viewModel.Night!;
+        night.WindowStartLocal.Date.Should().Be(new DateTime(2026, 1, 14));
+        night.WindowEndLocal.Date.Should().Be(new DateTime(2026, 1, 15));
+
         var culmination = viewModel.SelectedObservation!.BestObservationTimeLocal!.Value;
-        culmination.Should().BeOnOrAfter(new DateTime(2026, 1, 14, 18, 0, 0))
-            .And.BeOnOrBefore(new DateTime(2026, 1, 15, 6, 0, 0));
-        viewModel.GetNightAltitudeCurve()[0].LocalTime.Should().Be(new DateTime(2026, 1, 14, 18, 0, 0));
+        culmination.Should().BeOnOrAfter(night.WindowStartLocal).And.BeOnOrBefore(night.WindowEndLocal);
+        viewModel.GetNightAltitudeCurve()[0].LocalTime.Should().Be(night.WindowStartLocal);
+    }
+
+    [Fact]
+    public async Task Night_InMexicoCityWinter_UsesSunsetAndAstronomicalDarkness()
+    {
+        var viewModel = await CreateLoadedMainAsync();
+
+        // CDMX, 15/1/2026: puesta ≈ 18:16, salida ≈ 07:13 (UTC-6).
+        viewModel.Night!.SunsetLocal.Should().BeCloseTo(new DateTime(2026, 1, 15, 18, 16, 0), TimeSpan.FromMinutes(5));
+        viewModel.Night.SunriseLocal.Should().BeCloseTo(new DateTime(2026, 1, 16, 7, 13, 0), TimeSpan.FromMinutes(5));
+        viewModel.DarkNightText.Should().MatchRegex(@"^\d\d:\d\d → \d\d:\d\d$");
+        viewModel.ChartTitle.Should().Contain("→");
+    }
+
+    [Fact]
+    public async Task SkyBanner_WarnsDuringTheDayAndClearsAtNight()
+    {
+        var viewModel = await CreateLoadedMainAsync();
+
+        viewModel.ObservationDateTime = new DateTime(2026, 1, 15, 13, 0, 0);
+        viewModel.SkyCondition.Should().Be(SkyCondition.Day);
+        viewModel.SkyBanner.Should().StartWith("Es de día");
+
+        viewModel.ObservationDateTime = new DateTime(2026, 1, 15, 23, 0, 0);
+        viewModel.SkyCondition.Should().Be(SkyCondition.Dark);
+        viewModel.SkyBanner.Should().BeNull();
+    }
+
+    [Fact]
+    public async Task Moon_IsReportedAndSeparationComputedForEachRow()
+    {
+        var viewModel = await CreateLoadedMainAsync();
+
+        viewModel.Moon.Should().NotBeNull();
+        viewModel.MoonIlluminationText.Should().EndWith("%");
+        viewModel.Objects.Should().OnlyContain(o => o.MoonSeparationDegrees >= 0 && o.MoonSeparationDegrees <= 180);
+        viewModel.SelectedObservation!.MoonSeparationDegrees.Should().NotBeNull();
+    }
+
+    [Theory]
+    [InlineData(0.01, true, "Luna nueva")]
+    [InlineData(0.25, true, "Creciente")]
+    [InlineData(0.5, true, "Cuarto creciente")]
+    [InlineData(0.8, false, "Gibosa menguante")]
+    [InlineData(0.99, false, "Luna llena")]
+    public void DescribeMoonPhase_NamesThePhase(double fraction, bool waxing, string expected)
+    {
+        MainViewModel.DescribeMoonPhase(fraction, waxing).Should().Be(expected);
+    }
+
+    [Fact]
+    public void MoonInterferes_OnlyWhenBrightCloseAndAboveHorizon()
+    {
+        var brightHigh = new MoonState(new HorizontalCoordinates(40, 180), new EquatorialCoordinates(1, 0), 0.9, true);
+        var brightLow = brightHigh with { Horizontal = new HorizontalCoordinates(-5, 180) };
+        var dim = brightHigh with { IlluminatedFraction = 0.1 };
+
+        MainViewModel.MoonInterferes(brightHigh, 15).Should().BeTrue();
+        MainViewModel.MoonInterferes(brightHigh, 45).Should().BeFalse();
+        MainViewModel.MoonInterferes(brightLow, 15).Should().BeFalse();
+        MainViewModel.MoonInterferes(dim, 15).Should().BeFalse();
     }
 
     [Fact]

@@ -53,6 +53,21 @@ public static class AstronomyMath
         return normalized < 0 ? normalized + 360.0 : normalized;
     }
 
+    /// <summary>Distancia angular (grados) entre dos puntos del cielo (Meeus 17.1).</summary>
+    public static double AngularSeparationDegrees(EquatorialCoordinates a, EquatorialCoordinates b)
+    {
+        ArgumentNullException.ThrowIfNull(a);
+        ArgumentNullException.ThrowIfNull(b);
+
+        var deltaA = DegreesToRadiansValue(a.DeclinationDegrees);
+        var deltaB = DegreesToRadiansValue(b.DeclinationDegrees);
+        var deltaAlpha = DegreesToRadiansValue((a.RightAscensionHours - b.RightAscensionHours) * 15.0);
+
+        var cosine = Math.Sin(deltaA) * Math.Sin(deltaB)
+            + Math.Cos(deltaA) * Math.Cos(deltaB) * Math.Cos(deltaAlpha);
+        return RadiansToDegreesValue(Math.Acos(Math.Clamp(cosine, -1.0, 1.0)));
+    }
+
     internal static double DegreesToRadiansValue(double degrees) => degrees * DegreesToRadians;
     internal static double RadiansToDegreesValue(double radians) => radians * RadiansToDegrees;
 }

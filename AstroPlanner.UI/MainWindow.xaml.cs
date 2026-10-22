@@ -105,10 +105,36 @@ public partial class MainWindow : Window
 
         if (points.Count > 0)
         {
+            // Primero el fondo (crepúsculo) para que las curvas queden encima.
+            AddTwilightBands(viewModel.Night);
+
             // Eje X con fechas reales para que el cambio de día muestre
             // correctamente 23:00, 00:00, 01:00, etc.
             var x = points.Select(p => p.LocalTime.ToOADate()).ToArray();
             var y = points.Select(p => p.AltitudeDegrees).ToArray();
+
+            var moonPoints = viewModel.GetMoonAltitudeCurve();
+            if (moonPoints.Count > 0)
+            {
+                var moonLine = AltitudePlot.Plot.Add.Scatter(
+                    moonPoints.Select(p => p.LocalTime.ToOADate()).ToArray(),
+                    moonPoints.Select(p => p.AltitudeDegrees).ToArray());
+                moonLine.LegendText = $"Luna ({viewModel.MoonIlluminationText})";
+                moonLine.Color = ScottPlot.Color.FromHex("#E8E3C8").WithAlpha(0.8);
+                moonLine.LineWidth = 1.5f;
+                moonLine.LinePattern = ScottPlot.LinePattern.Dashed;
+                moonLine.MarkerSize = 0;
+            }
+
+            var selectedTime = viewModel.ObservationDateTime.ToOADate();
+            if (selectedTime >= x[0] && selectedTime <= x[^1])
+            {
+                var nowLine = AltitudePlot.Plot.Add.VerticalLine(selectedTime);
+                nowLine.LineColor = ScottPlot.Color.FromHex("#8FA8C8");
+                nowLine.LineWidth = 1;
+                nowLine.LinePattern = ScottPlot.LinePattern.Dotted;
+                nowLine.LegendText = "Hora elegida";
+            }
 
             var altitudeLine = AltitudePlot.Plot.Add.Scatter(x, y);
             altitudeLine.LegendText = "Altitud";
@@ -137,5 +163,39 @@ public partial class MainWindow : Window
         }
 
         AltitudePlot.Refresh();
+    }
+
+    /// <summary>
+    /// Sombrea el crepúsculo: de la puesta del Sol al final del crepúsculo
+    /// astronómico y del inicio del crepúsculo matutino a la salida. Si nunca
+    /// oscurece del todo, se sombrea toda la ventana.
+    /// </summary>
+    private void AddTwilightBands(Core.Models.NightInfo? night)
+    {
+        if (night is null || night.IsFallbackWindow)
+        {
+            return;
+        }
+
+        var bands = night.HasAstronomicalDarkness
+            ? new[]
+            {
+                (night.WindowStartLocal, night.AstronomicalDuskLocal!.Value),
+                (night.AstronomicalDawnLocal!.Value, night.WindowEndLocal)
+            }
+            : new[] { (night.WindowStartLocal, night.WindowEndLocal) };
+
+        var first = true;
+        foreach (var (from, to) in bands)
+        {
+            var span = AltitudePlot.Plot.Add.HorizontalSpan(from.ToOADate(), to.ToOADate());
+            span.FillStyle.Color = ScottPlot.Color.FromHex("#3A4F7A").WithAlpha(0.35);
+            span.LineStyle.Width = 0;
+            if (first)
+            {
+                span.LegendText = "Crepúsculo";
+                first = false;
+            }
+        }
     }
 }

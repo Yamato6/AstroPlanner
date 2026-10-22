@@ -6,11 +6,16 @@ su trayectoria de altitud/azimut a lo largo de la noche.
 
 ## Funcionalidad
 
-- **Planificador:** tabla con los 110 objetos Messier (altitud, azimut, estado de
-  visibilidad), filtros por tipo, constelación y "solo visibles", y gráfico de
-  altitud de 18:00 a 06:00 (hora local) del objeto seleccionado.
+- **Noche y Luna:** puesta y salida del Sol, noche oscura (crepúsculo
+  astronómico) y fase, iluminación y altura de la Luna para la fecha elegida.
+  Aviso cuando a la hora elegida es de día o hay crepúsculo.
+- **Planificador:** tabla con los 110 objetos Messier (altitud, azimut,
+  distancia a la Luna, estado de visibilidad), filtros por tipo, constelación y
+  "solo visibles", y gráfico de altitud de la puesta a la salida del Sol con el
+  crepúsculo sombreado, la curva de la Luna y la hora elegida.
 - **Detalle del objeto:** hora de salida, inicio de visibilidad (cruce del umbral
-  de altitud), mejor momento de observación, ocaso y altitud máxima.
+  de altitud), mejor momento de observación, ocaso, altitud máxima, distancia a
+  la Luna y aviso si su brillo dificulta la observación.
 - **Mi plan:** tabla con los objetos añadidos desde el detalle, con su posición
   actual; se guarda entre sesiones.
 - **Configuración** (ventana modal): ciudad del catálogo o coordenadas manuales,
@@ -24,10 +29,14 @@ Clean Architecture + MVVM estricto. `AstroPlanner.Core` no depende de UI.
 AstroPlanner.Core/    Modelos, algoritmos astronómicos, interfaces. Sin dependencias de UI.
   ├── Models/           EquatorialCoordinates, HorizontalCoordinates, ObserverLocation,
   │                     CelestialObject (+ enum CelestialObjectType), City, ObjectNightEvents
-  ├── Algorithms/       AstronomyMath (JD, GMST, LST, normalización)
+  │                     SolarSystem: SunPosition, MoonPosition, MoonState, NightInfo, SkyCondition
+  ├── Algorithms/       AstronomyMath (JD, GMST, LST, separación angular)
   │                     CoordinateTransformer (ecuatorial → horizontal, Math.Clamp)
+  │                     Precession (J2000 → fecha, Meeus cap. 21)
+  │                     Refraction (Saemundsson, Meeus cap. 16)
+  │                     SolarSystemCalculator (Sol, Luna, fase lunar)
   │                     TimeZoneConversion (hora local → UTC, horario de verano)
-  │                     ObservationNight (ventana 18:00 → 06:00, cruces de altitud)
+  │                     ObservationNight (noche que contiene una hora, cruces de altitud)
   ├── Services/         AstronomyService (implementación de IAstronomyService)
   └── Interfaces/       ICelestialRepository, ICityRepository, IAstronomyService
 
@@ -49,7 +58,8 @@ AstroPlanner.UI/      WPF (.NET 8), ViewModels, vistas XAML, servicios de presen
   │                     IAppLogger + FileAppLogger (logs\astroplanner-AAAAMMDD.log)
   └── App.xaml.cs       Contenedor de DI y manejo global de errores
 
-AstroPlanner.Tests/    xUnit + FluentAssertions (56 pruebas de Core, Data y UI).
+AstroPlanner.Tests/    xUnit + FluentAssertions (82 pruebas de Core, Data y UI),
+                       incluidas pruebas de referencia contra los ejemplos de Meeus.
                        net8.0-windows para poder probar ViewModels y servicios de UI.
 
 .github/workflows/ci.yml  Compila y prueba en cada push/PR; con un tag v* publica
@@ -66,11 +76,18 @@ AstroPlanner.Tests/    xUnit + FluentAssertions (56 pruebas de Core, Data y UI).
   `AstronomyService` (inyectable) es una envoltura fina para que los ViewModels
   no dependan de clases estáticas: `MainViewModel` solo usa `IAstronomyService`.
 - **Noche de observación.** La curva y los eventos (salida, culminación, puesta)
-  cubren de 18:00 a 06:00. Una hora antes del mediodía pertenece a la noche que
-  empezó el día anterior (las 02:00 del día 5 son la noche del 4 al 5). Esta
-  lógica vive en Core (`ObservationNight`, `IAstronomyService.GetNightEvents`)
-  para poder probarla; un evento fuera de la ventana es `null` (p. ej. M42 en
-  diciembre se pone después de las 06:00).
+  cubren de la puesta a la salida del Sol (`IAstronomyService.GetNightInfo`).
+  Una hora antes del mediodía pertenece a la noche que empezó el día anterior
+  (las 02:00 del día 5 son la noche del 4 al 5). Un evento fuera de la ventana
+  es `null` y se muestra como "—". Si el Sol no se pone o no sale (latitudes
+  polares) se usa la ventana fija 18:00 → 06:00.
+- **Sol y crepúsculo.** Puesta/salida con el centro del Sol a -0.833° (radio +
+  refracción, convención estándar) y noche oscura con el Sol a -18°. Se buscan
+  muestreando la altura del Sol cada 10 min e interpolando el cruce.
+- **Luna.** Fórmulas de baja precisión del Astronomical Almanac (~0.3°), con
+  paralaje (hasta ~1° cerca del horizonte) y refracción. Se considera que
+  estorba si está sobre el horizonte, iluminada ≥ 25 % y a menos de 30° del
+  objeto (`MainViewModel.MoonInterferes`).
 - **Validación de entrada.** Los ViewModels heredan de `ObservableValidator` con
   `[Range]`. Con un valor inválido (p. ej. altitud mínima 120) se muestra un
   aviso y la tabla y el gráfico conservan el último cálculo válido en lugar de
@@ -100,10 +117,13 @@ AstroPlanner.Tests/    xUnit + FluentAssertions (56 pruebas de Core, Data y UI).
 - **ScottPlot 5** para el gráfico. La dependencia transitoria
   `SkiaSharp.Views.WPF` genera el warning NU1701; es conocido de ScottPlot y no
   afecta al funcionamiento.
-- **Precisión.** Se usan coordenadas J2000 sin corregir precesión ni nutación, y
-  no se aplica refracción atmosférica; la elevación del observador se guarda
-  pero no interviene en el cálculo. Suficiente para planificar (error del orden
-  de décimas de grado), no para apuntado preciso.
+- **Precisión.** `IAstronomyService.GetHorizontal` aplica la precesión J2000 →
+  fecha (~0.36° en 2026) y la refracción estándar (~34' en el horizonte); no
+  aplica nutación ni aberración (&lt; 30"). Se usa UT en lugar de TT (ΔT ≈ 70 s).
+  La elevación del observador se guarda pero no interviene en el cálculo.
+  `CoordinateTransformer` sigue siendo la transformación geométrica pura. Las
+  pruebas de `SolarSystemTests` comparan con los ejemplos resueltos de Meeus y
+  con la puesta/salida del Sol publicadas para CDMX (±3 min).
 
 ## Catálogos
 
@@ -143,12 +163,8 @@ dotnet test AstroPlanner.Tests --filter "FullyQualifiedName~AstronomyMathTests|F
 
 ## Hoja de ruta
 
-**0.5: astronomía más realista**
-- Sol: puesta, salida y crepúsculo astronómico (−18°); la ventana nocturna y el
-  gráfico usan la oscuridad real en lugar de 18:00–06:00.
-- Luna: posición, fase, iluminación y distancia a cada objeto.
-- Precesión J2000 → fecha y refracción atmosférica.
-- Pruebas de referencia contra Stellarium (M31, M42, puesta de Sol en CDMX).
+**0.5 (hecho):** Sol y noche real, Luna (fase, posición, distancia a cada
+objeto), precesión, refracción y pruebas de referencia.
 
 **0.6: usabilidad**
 - Búsqueda por nombre/id y filtro de magnitud.

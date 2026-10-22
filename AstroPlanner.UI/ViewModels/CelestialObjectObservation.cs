@@ -15,4 +15,12 @@ public sealed class CelestialObjectObservation
     public DateTime? BestObservationTimeLocal { get; init; }
     public DateTime? SetTimeLocal { get; init; }
     public double MaximumAltitudeDegrees { get; init; }
+
+    /// <summary>Distancia angular a la Luna en el instante elegido (grados).</summary>
+    public double? MoonSeparationDegrees { get; init; }
+
+    /// <summary>Aviso cuando la Luna dificulta la observación; null si no molesta.</summary>
+    public string? MoonWarning { get; init; }
+
+    public bool HasMoonWarning => MoonWarning is not null;
 }

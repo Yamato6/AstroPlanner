@@ -271,6 +271,18 @@
         <Style x:Key="NumericCellStyle" TargetType="TextBlock">
             <Setter Property="TextAlignment" Value="Right"/>
         </Style>
+        <!-- Distancia a la Luna: naranja cuando la Luna, brillante y cercana, estorba -->
+        <Style x:Key="MoonCellStyle" TargetType="TextBlock">
+            <Setter Property="TextAlignment" Value="Right"/>
+            <Setter Property="ToolTip" Value="Distancia angular a la Luna"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding MoonInterferes}" Value="True">
+                    <Setter Property="Foreground" Value="#FFB45E"/>
+                    <Setter Property="FontWeight" Value="SemiBold"/>
+                    <Setter Property="ToolTip" Value="La Luna, brillante y cercana, dificulta la observación"/>
+                </DataTrigger>
+            </Style.Triggers>
+        </Style>
         <Style x:Key="StatusCellStyle" TargetType="TextBlock">
             <Setter Property="TextAlignment" Value="Center"/>
             <Setter Property="Foreground" Value="#62E6A7"/>
@@ -366,7 +378,7 @@
             </Grid>
         </Border>
 
-        <UniformGrid Grid.Row="1" Columns="4" Margin="0,0,0,12">
+        <UniformGrid Grid.Row="1" Columns="5" Margin="0,0,0,12">
             <Border Background="{StaticResource NightCardBrush}" CornerRadius="7" Padding="14" Margin="0,0,6,0">
                 <StackPanel>
                     <TextBlock Foreground="#8FA8C8" Text="Objetos del catálogo"/>
@@ -379,10 +391,21 @@
                     <TextBlock Foreground="#8BE0B2" FontSize="24" FontWeight="SemiBold" Text="{Binding VisibleObjectsCount}"/>
                 </StackPanel>
             </Border>
-            <Border Background="{StaticResource NightCardBrush}" CornerRadius="7" Padding="14" Margin="6,0">
+            <!-- Noche oscura: fin → inicio del crepúsculo astronómico (Sol a -18°) -->
+            <Border Background="{StaticResource NightCardBrush}" CornerRadius="7" Padding="14" Margin="6,0"
+                    ToolTip="Noche oscura: el Sol está más de 18° bajo el horizonte.">
                 <StackPanel>
-                    <TextBlock Foreground="#8FA8C8" Text="Ciudad activa"/>
-                    <TextBlock Foreground="White" FontSize="16" FontWeight="SemiBold" Text="{Binding ActiveLocationName}"/>
+                    <TextBlock Foreground="#8FA8C8" Text="Noche oscura"/>
+                    <TextBlock Foreground="#B9A7FF" FontSize="24" FontWeight="SemiBold" Text="{Binding DarkNightText}"/>
+                    <TextBlock Foreground="#8FA8C8" FontSize="12" Text="{Binding SunTimesText}" TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
+            </Border>
+            <Border Background="{StaticResource NightCardBrush}" CornerRadius="7" Padding="14" Margin="6,0"
+                    ToolTip="Fase y altura de la Luna a la hora elegida.">
+                <StackPanel>
+                    <TextBlock Foreground="#8FA8C8" Text="Luna"/>
+                    <TextBlock Foreground="#E8E3C8" FontSize="24" FontWeight="SemiBold" Text="{Binding MoonIlluminationText}"/>
+                    <TextBlock Foreground="#8FA8C8" FontSize="12" Text="{Binding MoonDetailText}" TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
             </Border>
             <Border Background="{StaticResource NightCardBrush}" CornerRadius="7" Padding="14" Margin="6,0,0,0">
@@ -461,6 +484,19 @@
                                         </Style>
                                     </TextBlock.Style>
                                 </TextBlock>
+                                <!-- Aviso de día o crepúsculo a la hora elegida -->
+                                <TextBlock Foreground="#FFB45E" TextWrapping="Wrap" FontWeight="SemiBold"
+                                           Text="{Binding SkyBanner}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SkyBanner}" Value="{x:Null}">
+                                                    <Setter Property="Visibility" Value="Collapsed"/>
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
                                 <TextBlock Foreground="#555" TextWrapping="Wrap">
                                     <Run Text="Mostrando "/><Run Text="{Binding Objects.Count, Mode=OneWay}"/><Run Text=" objetos"/>
                                 </TextBlock>
@@ -473,12 +509,13 @@
                                 <DataGrid.Columns>
                                     <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="55"/>
                                     <DataGridTextColumn Header="Nombre" Binding="{Binding CommonName}" Width="*"/>
-                                    <DataGridTextColumn Header="Constelación" Binding="{Binding Constellation}" Width="110"/>
-                                    <DataGridTextColumn Header="Tipo" Binding="{Binding Type}" Width="120"/>
-                                    <DataGridTextColumn Header="Magnitud" Binding="{Binding ApparentMagnitude, StringFormat=F1}" Width="75" ElementStyle="{StaticResource NumericCellStyle}"/>
-                                    <DataGridTextColumn Header="Altitud" Binding="{Binding AltitudeDegrees, StringFormat=F1}" Width="70" ElementStyle="{StaticResource NumericCellStyle}"/>
-                                    <DataGridTextColumn Header="Azimut" Binding="{Binding AzimuthDegrees, StringFormat=F1}" Width="70" ElementStyle="{StaticResource NumericCellStyle}"/>
-                                    <DataGridTextColumn Header="Estado" Binding="{Binding VisibilityStatus}" Width="88" ElementStyle="{StaticResource StatusCellStyle}"/>
+                                    <DataGridTextColumn Header="Constelación" Binding="{Binding Constellation}" Width="100"/>
+                                    <DataGridTextColumn Header="Tipo" Binding="{Binding Type}" Width="112"/>
+                                    <DataGridTextColumn Header="Mag." Binding="{Binding ApparentMagnitude, StringFormat=F1}" Width="50" ElementStyle="{StaticResource NumericCellStyle}"/>
+                                    <DataGridTextColumn Header="Altitud" Binding="{Binding AltitudeDegrees, StringFormat=F1}" Width="62" ElementStyle="{StaticResource NumericCellStyle}"/>
+                                    <DataGridTextColumn Header="Azimut" Binding="{Binding AzimuthDegrees, StringFormat=F1}" Width="64" ElementStyle="{StaticResource NumericCellStyle}"/>
+                                    <DataGridTextColumn Header="Luna" Binding="{Binding MoonSeparationDegrees, StringFormat={}{0:0}°}" Width="52" ElementStyle="{StaticResource MoonCellStyle}"/>
+                                    <DataGridTextColumn Header="Estado" Binding="{Binding VisibilityStatus}" Width="82" ElementStyle="{StaticResource StatusCellStyle}"/>
                                 </DataGrid.Columns>
                             </DataGrid>
 
@@ -500,7 +537,7 @@
                                 <RowDefinition Height="*"/>
                             </Grid.RowDefinitions>
                             <TextBlock Grid.Row="0" FontSize="18" FontWeight="SemiBold"
-                                       Text="Altitud durante la noche (18:00 → 06:00)"/>
+                                       Text="{Binding ChartTitle}"/>
                             <ScottPlot:WpfPlot x:Name="AltitudePlot" Grid.Row="1" Margin="0,8,0,0"/>
                         </Grid>
                     </Border>
@@ -565,13 +602,17 @@
                                 <TextBlock Margin="0,6,0,0" Text="{Binding Coordinates.AltitudeDegrees, StringFormat=Altitud: {0:0.0}°}"/>
                                 <TextBlock Text="{Binding Coordinates.AzimuthDegrees, StringFormat=Azimut: {0:0.0}°}"/>
                                 <TextBlock Text="{Binding VisibilityStatus, StringFormat=Estado: {0}}"/>
+                                <TextBlock Text="{Binding MoonSeparationDegrees, StringFormat=Distancia a la Luna: {0:0}°}"/>
+                                <TextBlock Margin="0,8,12,0" Foreground="#FFB45E" FontWeight="SemiBold" TextWrapping="Wrap"
+                                           Text="{Binding MoonWarning}"
+                                           Visibility="{Binding HasMoonWarning, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                             </StackPanel>
                             <StackPanel Grid.Row="2" Grid.Column="2">
                                 <TextBlock Foreground="{StaticResource NightMutedTextBrush}" Text="Eventos de la noche"/>
-                                <TextBlock Margin="0,6,0,0" Text="{Binding RiseTimeLocal, StringFormat=Salida: {0:HH\:mm}}"/>
-                                <TextBlock Text="{Binding VisibilityStartTimeLocal, StringFormat=Supera el umbral: {0:HH\:mm}}"/>
+                                <TextBlock Margin="0,6,0,0" Text="{Binding RiseTimeLocal, StringFormat=Salida: {0:HH\:mm}, TargetNullValue='Salida: —'}"/>
+                                <TextBlock Text="{Binding VisibilityStartTimeLocal, StringFormat=Supera el umbral: {0:HH\:mm}, TargetNullValue='Supera el umbral: —'}"/>
                                 <TextBlock Text="{Binding BestObservationTimeLocal, StringFormat=Culminación: {0:HH\:mm}}"/>
-                                <TextBlock Text="{Binding SetTimeLocal, StringFormat=Puesta: {0:HH\:mm}}"/>
+                                <TextBlock Text="{Binding SetTimeLocal, StringFormat=Puesta: {0:HH\:mm}, TargetNullValue='Puesta: —'}"/>
                                 <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
                                     <Button Style="{StaticResource PrimaryButtonStyle}" Content="Agregar al plan"
                                             Command="{Binding DataContext.AddSelectedToObservationPlanCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
@@ -617,12 +658,13 @@
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="55"/>
                                 <DataGridTextColumn Header="Nombre" Binding="{Binding CommonName}" Width="*"/>
-                                <DataGridTextColumn Header="Constelación" Binding="{Binding Constellation}" Width="110"/>
-                                <DataGridTextColumn Header="Tipo" Binding="{Binding Type}" Width="120"/>
-                                <DataGridTextColumn Header="Magnitud" Binding="{Binding ApparentMagnitude, StringFormat=F1}" Width="75" ElementStyle="{StaticResource NumericCellStyle}"/>
-                                <DataGridTextColumn Header="Altitud" Binding="{Binding AltitudeDegrees, StringFormat=F1}" Width="70" ElementStyle="{StaticResource NumericCellStyle}"/>
-                                <DataGridTextColumn Header="Azimut" Binding="{Binding AzimuthDegrees, StringFormat=F1}" Width="70" ElementStyle="{StaticResource NumericCellStyle}"/>
-                                <DataGridTextColumn Header="Estado" Binding="{Binding VisibilityStatus}" Width="88" ElementStyle="{StaticResource StatusCellStyle}"/>
+                                <DataGridTextColumn Header="Constelación" Binding="{Binding Constellation}" Width="100"/>
+                                <DataGridTextColumn Header="Tipo" Binding="{Binding Type}" Width="112"/>
+                                <DataGridTextColumn Header="Mag." Binding="{Binding ApparentMagnitude, StringFormat=F1}" Width="50" ElementStyle="{StaticResource NumericCellStyle}"/>
+                                <DataGridTextColumn Header="Altitud" Binding="{Binding AltitudeDegrees, StringFormat=F1}" Width="62" ElementStyle="{StaticResource NumericCellStyle}"/>
+                                <DataGridTextColumn Header="Azimut" Binding="{Binding AzimuthDegrees, StringFormat=F1}" Width="64" ElementStyle="{StaticResource NumericCellStyle}"/>
+                                <DataGridTextColumn Header="Luna" Binding="{Binding MoonSeparationDegrees, StringFormat={}{0:0}°}" Width="52" ElementStyle="{StaticResource MoonCellStyle}"/>
+                                <DataGridTextColumn Header="Estado" Binding="{Binding VisibilityStatus}" Width="82" ElementStyle="{StaticResource StatusCellStyle}"/>
                                 <DataGridTemplateColumn Width="90">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
