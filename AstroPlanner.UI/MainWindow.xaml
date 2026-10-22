@@ -274,6 +274,11 @@
         <Style x:Key="StatusCellStyle" TargetType="TextBlock">
             <Setter Property="TextAlignment" Value="Center"/>
             <Setter Property="Foreground" Value="#62E6A7"/>
+            <Style.Triggers>
+                <DataTrigger Binding="{Binding IsVisible}" Value="False">
+                    <Setter Property="Foreground" Value="#FF6B6B"/>
+                </DataTrigger>
+            </Style.Triggers>
         </Style>
     </Window.Resources>
     <Grid Margin="16">
