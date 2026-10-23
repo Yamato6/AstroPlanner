@@ -88,6 +88,23 @@ public sealed class ViewModelTests
     }
 
     [Fact]
+    public async Task Filters_ShowSpanishLabelsAndCanBeCleared()
+    {
+        var viewModel = await CreateLoadedMainAsync();
+
+        viewModel.TypeFilters[0].Should().Be(new FilterOption("All", "Todos"));
+        viewModel.TypeFilters.Should().Contain(new FilterOption("GlobularCluster", "Cúmulo globular"));
+        viewModel.ConstellationFilters[0].Should().Be(new FilterOption("", "Todas"));
+
+        // Elegir una constelación y volver a "Todas" desde la propia lista.
+        var constellation = viewModel.ConstellationFilters[1].Value;
+        viewModel.ConstellationFilter = constellation;
+        viewModel.Objects.Should().OnlyContain(o => o.Constellation == constellation);
+        viewModel.ConstellationFilter = viewModel.ConstellationFilters[0].Value;
+        viewModel.Objects.Should().HaveCount(3);
+    }
+
+    [Fact]
     public async Task InvalidMinimumAltitude_ShowsWarningAndKeepsLastTable()
     {
         var viewModel = await CreateLoadedMainAsync();

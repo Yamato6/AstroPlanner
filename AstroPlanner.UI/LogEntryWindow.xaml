@@ -2,45 +2,39 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Registrar observación"
-        Width="560"
+        Width="620"
         SizeToContent="Height"
         ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner"
-        Background="#101A2B">
+        Background="{StaticResource DialogBackgroundBrush}">
     <Window.Resources>
+        <!-- Colores y plantillas: Themes/Dark.xaml -->
         <Style TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#D7E3F4"/>
+            <Setter Property="Foreground" Value="{StaticResource NightTextBrush}"/>
         </Style>
         <Style TargetType="Label">
-            <Setter Property="Foreground" Value="#AFC2DD"/>
+            <Setter Property="Foreground" Value="{StaticResource LabelTextBrush}"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
-        <Style TargetType="TextBox">
+        <Style TargetType="TextBox" BasedOn="{StaticResource DarkTextBoxStyle}">
             <Setter Property="Margin" Value="0,4,0,4"/>
-            <Setter Property="Padding" Value="7,4"/>
+            <Setter Property="Padding" Value="7,5"/>
         </Style>
-        <Style TargetType="ComboBox">
+        <Style TargetType="ComboBox" BasedOn="{StaticResource DarkComboBoxStyle}">
             <Setter Property="Margin" Value="0,4,12,4"/>
             <Setter Property="Width" Value="60"/>
-            <!-- Texto oscuro explícito: el estilo de TextBlock de la ventana (claro)
-                 se aplicaría dentro del desplegable, que tiene fondo blanco. -->
-            <Setter Property="ItemTemplate">
-                <Setter.Value>
-                    <DataTemplate>
-                        <TextBlock Text="{Binding}" Foreground="Black"/>
-                    </DataTemplate>
-                </Setter.Value>
-            </Setter>
         </Style>
-        <Style TargetType="Button">
-            <Setter Property="Padding" Value="14,7"/>
+        <!-- Con clave, no implícito: un estilo implícito de Button también alcanzaría
+             al botón del calendario dentro del DatePicker y lo ensancharía. -->
+        <Style x:Key="DialogButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
             <Setter Property="Margin" Value="0,0,8,0"/>
+            <Setter Property="MinWidth" Value="90"/>
         </Style>
     </Window.Resources>
 
     <StackPanel Margin="28">
         <TextBlock FontSize="22" FontWeight="SemiBold" Text="{Binding Title}"/>
-        <TextBlock Margin="0,4,0,18" Foreground="#8FA8C8" TextWrapping="Wrap"
+        <TextBlock Margin="0,4,0,18" Foreground="{StaticResource NightMutedTextBrush}" TextWrapping="Wrap"
                    Text="Anota la observación en tu bitácora. Seeing, transparencia y valoración: 1 = malo, 5 = excelente."/>
 
         <Grid>
@@ -58,7 +52,8 @@
 
             <Label Grid.Row="0" Content="Fecha y hora"/>
             <StackPanel Grid.Row="0" Grid.Column="1" Orientation="Horizontal">
-                <DatePicker Width="140" Margin="0,4,8,4" SelectedDate="{Binding ObservedDate}" Language="es-MX"/>
+                <DatePicker Width="140" Margin="0,4,8,4" Style="{StaticResource DarkDatePickerStyle}"
+                            AutomationProperties.Name="Fecha" SelectedDate="{Binding ObservedDate}"/>
                 <TextBox Width="70" Text="{Binding ObservedTime, UpdateSourceTrigger=PropertyChanged}"
                          ToolTip="Hora local, HH:mm"/>
             </StackPanel>
@@ -86,11 +81,12 @@
                      Text="{Binding Notes, UpdateSourceTrigger=PropertyChanged}"/>
         </Grid>
 
-        <TextBlock x:Name="ErrorText" Margin="0,12,0,0" Foreground="#FFB3A7" TextWrapping="Wrap" Visibility="Collapsed"/>
+        <TextBlock x:Name="ErrorText" Margin="0,12,0,0" Foreground="{StaticResource DangerSoftBrush}" TextWrapping="Wrap" Visibility="Collapsed"/>
 
         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,20,0,0">
-            <Button Content="Cancelar" IsCancel="True"/>
-            <Button Content="Guardar" IsDefault="True" Click="OnSaveClicked"/>
+            <Button Content="Cancelar" IsCancel="True" Style="{StaticResource DialogButtonStyle}"/>
+            <Button Content="Guardar" IsDefault="True" Click="OnSaveClicked"
+                    Style="{StaticResource PrimaryButtonStyle}" Margin="0" MinWidth="90"/>
         </StackPanel>
     </StackPanel>
 </Window>

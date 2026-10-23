@@ -1,249 +1,180 @@
-﻿# AstroPlanner
+﻿<p align="center">
+  <img src="AstroPlanner.UI/Assets/AstroPlanner.png" width="96" alt="Icono de AstroPlanner">
+</p>
 
-Planificador de observaciones astronómicas para Windows (WPF, .NET 8). Dada una
-ubicación, fecha y hora, calcula qué objetos del catálogo Messier y qué planetas
-son visibles y su trayectoria de altitud/azimut a lo largo de la noche, y lleva
-una bitácora de lo observado.
+<h1 align="center">AstroPlanner</h1>
 
-## Funcionalidad
+<p align="center">
+  <b>Qué ver esta noche, a qué hora y con qué cielo.</b><br>
+  Planificador de observaciones astronómicas para Windows.
+</p>
 
-- **Noche y Luna:** puesta y salida del Sol, noche oscura (crepúsculo
-  astronómico) y fase, iluminación y altura de la Luna para la fecha elegida.
-  Aviso cuando a la hora elegida es de día o hay crepúsculo.
-- **Nubes:** pronóstico de nubosidad por horas (Open-Meteo): media de la noche
-  oscura y hora más despejada, franjas en el gráfico y nubes a la hora de
-  culminación en el detalle y en Mi plan. Sin internet la app sigue funcionando.
-- **Versión nueva:** al iniciar se consultan las releases de GitHub y, si hay
-  una más reciente, se muestra un aviso con enlace de descarga.
-- **Fecha y hora:** calendario, hora/minuto, ±1 h, "Ahora" (hora actual de la
-  ubicación del observador) y modo **En vivo**, que sigue el reloj y actualiza
-  todo cada minuto hasta que se elige otra hora a mano.
-- **Planificador:** tabla con los 110 objetos Messier y los 7 planetas (altitud,
-  azimut, distancia a la Luna, estado de visibilidad, ✓ si ya se observó), búsqueda por id, nombre o
-  constelación (sin distinguir acentos), filtros por tipo, constelación,
-  magnitud máxima y "solo visibles", y gráfico de altitud de la puesta a la
-  salida del Sol con el crepúsculo sombreado, la curva de la Luna y la hora elegida.
-- **Cielo:** carta polar del cielo a la hora elegida (cénit en el centro, norte
-  arriba, este a la izquierda) con los objetos sobre el horizonte, Mi plan, la
-  Luna, los planetas y el círculo de altitud mínima; clic en un objeto para seleccionarlo.
-- **Detalle del objeto:** hora de salida, inicio de visibilidad (cruce del umbral
-  de altitud), mejor momento de observación, ocaso, altitud máxima, distancia a
-  la Luna y aviso si su brillo dificulta la observación. En los planetas,
-  además: distancia, tamaño aparente, fase y distancia al Sol en el cielo.
-  Botón "Registrar observación…" para anotarlo en la bitácora.
-- **Mi plan:** objetos añadidos desde el detalle, ordenados por hora de
-  culminación (el orden en que conviene observar), con notas por objeto;
-  exportar a CSV e imprimir. Se guarda entre sesiones.
-- **Bitácora:** observaciones registradas (fecha, lugar, equipo, seeing,
-  transparencia, valoración y notas), progreso del maratón Messier (n / 110) y
-  exportación a CSV.
-- **Configuración** (ventana modal): ciudad del catálogo o coordenadas manuales,
-  elevación, zona horaria, altitud mínima, magnitud máxima, y activar o no el
-  pronóstico de nubes y la búsqueda de versiones nuevas.
+<p align="center">
+  <a href="https://github.com/Yamato6/AstroPlanner/releases/latest"><img src="https://img.shields.io/github/v/release/Yamato6/AstroPlanner?include_prereleases&label=versi%C3%B3n" alt="Versión"></a>
+  <a href="https://github.com/Yamato6/AstroPlanner/actions/workflows/ci.yml"><img src="https://github.com/Yamato6/AstroPlanner/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4" alt="Windows 10 | 11">
+  <img src="https://img.shields.io/badge/.NET-8-512BD4" alt=".NET 8">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/licencia-MIT-green" alt="Licencia MIT"></a>
+</p>
 
-## Arquitectura
+<p align="center">
+  <a href="https://github.com/Yamato6/AstroPlanner/releases/latest"><b>⬇ Descargar para Windows</b></a>
+</p>
 
-Clean Architecture + MVVM estricto. `AstroPlanner.Core` no depende de UI.
+![El planificador: objetos visibles, noche oscura, Luna, nubes y la altitud de M31 durante la noche](docs/screenshots/planner.png)
 
-```
-AstroPlanner.Core/    Modelos, algoritmos astronómicos, interfaces. Sin dependencias de UI.
-  ├── Models/           EquatorialCoordinates, HorizontalCoordinates, ObserverLocation,
-  │                     CelestialObject (+ enum CelestialObjectType), City, ObjectNightEvents
-  │                     SolarSystem: SunPosition, MoonPosition, MoonState, NightInfo, SkyCondition
-  │                     Planets: Planet, PlanetPosition, SolarSystemCatalog (los 7 planetas)
-  │                     Weather: HourlyWeather, WeatherForecast, CloudSummary
-  ├── Algorithms/       AstronomyMath (JD, GMST, LST, separación angular)
-  │                     CoordinateTransformer (ecuatorial → horizontal, Math.Clamp)
-  │                     Precession (J2000 → fecha, Meeus cap. 21)
-  │                     Refraction (Saemundsson, Meeus cap. 16)
-  │                     SolarSystemCalculator (Sol, Luna, fase lunar)
-  │                     PlanetCalculator (elementos de JPL, Kepler, magnitud y fase de Meeus)
-  │                     TimeZoneConversion (hora local → UTC, horario de verano)
-  │                     ObservationNight (noche que contiene una hora, cruces de altitud)
-  ├── Services/         AstronomyService (implementación de IAstronomyService)
-  └── Interfaces/       ICelestialRepository, ICityRepository, IAstronomyService,
-                        IWeatherForecastService
+## Qué hace
 
-AstroPlanner.Data/    Catálogos y persistencia de datos.
-  ├── Repositories/     JsonCelestialRepository (System.Text.Json + enum por string)
-  │                     JsonCityRepository, SeedDataSource (recursos incrustados)
-  │                     CatalogWithPlanetsRepository (añade los planetas al catálogo)
-  ├── Weather/          OpenMeteoForecastService (HttpClient, coordenadas redondeadas)
-  └── SeedData/         messier_objects.json (110 objetos, coordenadas J2000)
-                        cities.json (ciudades de México con zona horaria)
-                        Ambos se incrustan en el ensamblado (EmbeddedResource).
+- 🔭 **110 objetos Messier y los 7 planetas**: altitud, azimut y si se ven a la hora que elijas, con búsqueda y filtros.
+- 🌙 **La noche de verdad**: puesta y salida del Sol, noche oscura, fase de la Luna y aviso cuando su brillo estorba.
+- ☁️ **Nubes por hora**: pronóstico de Open-Meteo y la hora más despejada de la noche.
+- 🗺️ **Carta del cielo**: qué hay sobre el horizonte y dónde, como al mirar hacia arriba.
+- 📋 **Mi plan**: tu lista de la noche en el orden en que conviene observar, con notas, en CSV o impreso.
+- 📓 **Bitácora**: registra lo que observas y sigue tu progreso en el maratón Messier.
+- ⏱️ **En vivo**: sigue el reloj y lo actualiza todo cada minuto.
 
-AstroPlanner.UI/      WPF (.NET 8), ViewModels, vistas XAML, servicios de presentación.
-  ├── MainWindow.xaml   Pestañas Planificador / Cielo / Detalle del objeto / Mi plan / Bitácora
-  ├── SettingsWindow.xaml  Ventana modal de configuración
-  ├── LogEntryWindow.xaml  Ventana modal "Registrar observación"
-  ├── Converters/       BooleanToTextConverter, BooleanToVisibilityConverter (con Invert)
-  ├── ViewModels/       MainViewModel (planificador, filtros, modo en vivo, plan, carta)
-  │                     MainViewModel.Online.cs (pronóstico de nubes, aviso de versión)
-  │                     PlanItemViewModel (fila de Mi plan: nota y culminación)
-  │                     CelestialObjectObservation (datos del detalle)
-  │                     CatalogSearch (búsqueda sin acentos), SkyProjection (carta polar)
-  │                     SettingsViewModel (configuración persistida, ciudades)
-  │                     LogbookViewModel + LogEntryDraftViewModel (bitácora)
-  ├── Services/         ISettingsService + JsonSettingsService (settings.json)
-  │                     IObservationPlanService + JsonObservationPlanService (plan.json)
-  │                     IObservationLogService + JsonObservationLogService (logbook.json)
-  │                     PlanExport (CSV), PlanPrintDocument (FlowDocument imprimible)
-  │                     AtomicFile (escritura atómica), CsvBuilder (CSV con la cultura)
-  │                     IUpdateChecker + GitHubUpdateChecker (releases de GitHub)
-  │                     IAppLogger + FileAppLogger (logs\astroplanner-AAAAMMDD.log)
-  └── App.xaml.cs       Contenedor de DI y manejo global de errores
+Funciona sin conexión; internet solo se usa para las nubes y el aviso de versión nueva, y ambos se pueden desactivar.
 
-AstroPlanner.Tests/    xUnit + FluentAssertions (156 pruebas de Core, Data y UI),
-                       incluidas pruebas de referencia contra los ejemplos de Meeus.
-                       net8.0-windows para poder probar ViewModels y servicios de UI.
+## Capturas
 
-.github/workflows/ci.yml  Compila y prueba en cada push/PR; con un tag v* publica
-                          el .exe y crea un borrador de release en GitHub.
-```
+| Carta del cielo | Mi plan |
+|---|---|
+| ![Carta polar del cielo con los objetos visibles, la Luna y los planetas](docs/screenshots/sky.png) | ![Mi plan ordenado por hora de culminación, con nubes y notas](docs/screenshots/plan.png) |
+| **Detalle del objeto** | **Bitácora** |
+| ![Detalle de M31: salida, culminación, puesta, Luna y nubes](docs/screenshots/detail.png) | ![Bitácora con el progreso del maratón Messier](docs/screenshots/logbook.png) |
 
-## Decisiones no obvias
+## Instalación
 
-- **.NET 8 (LTS) como TFM.** El SDK instalado es el 10.0, pero se fija `net8.0`
-  (y `net8.0-windows` en UI) porque es LTS y estable para WPF. El SDK más nuevo
-  compila sin problemas hacia `net8.0`.
-- **`AstronomyMath` y `CoordinateTransformer` son estáticos y puros.** Son
-  matemática sin estado; no aporta nada convertirlos en servicios inyectados.
-  `AstronomyService` (inyectable) es una envoltura fina para que los ViewModels
-  no dependan de clases estáticas: `MainViewModel` solo usa `IAstronomyService`.
-- **Noche de observación.** La curva y los eventos (salida, culminación, puesta)
-  cubren de la puesta a la salida del Sol (`IAstronomyService.GetNightInfo`).
-  Una hora antes del mediodía pertenece a la noche que empezó el día anterior
-  (las 02:00 del día 5 son la noche del 4 al 5). Un evento fuera de la ventana
-  es `null` y se muestra como "—". Si el Sol no se pone o no sale (latitudes
-  polares) se usa la ventana fija 18:00 → 06:00.
-- **Sol y crepúsculo.** Puesta/salida con el centro del Sol a -0.833° (radio +
-  refracción, convención estándar) y noche oscura con el Sol a -18°. Se buscan
-  muestreando la altura del Sol cada 10 min e interpolando el cruce.
-- **Luna.** Fórmulas de baja precisión del Astronomical Almanac (~0.3°), con
-  paralaje (hasta ~1° cerca del horizonte) y refracción. Se considera que
-  estorba si está sobre el horizonte, iluminada ≥ 25 % y a menos de 30° del
-  objeto (`MainViewModel.MoonInterferes`).
-- **Validación de entrada.** Los ViewModels heredan de `ObservableValidator` con
-  `[Range]`. Con un valor inválido (p. ej. altitud mínima 120) se muestra un
-  aviso y la tabla y el gráfico conservan el último cálculo válido en lugar de
-  vaciarse.
-- **Errores y registro.** `App` captura las excepciones no controladas (interfaz,
-  dominio y tareas), las registra en `%LocalAppData%\AstroPlanner\logs` y avisa
-  al usuario sin cerrar la aplicación. Los errores ya controlados (catálogo,
-  ciudades, guardado) también se registran.
-- **Catálogos incrustados.** Los JSON de `SeedData` van como recursos del
-  ensamblado: el .exe publicado es un único archivo. Los repositorios aceptan
-  una ruta explícita, que tiene prioridad (la usan las pruebas).
-- **Fecha/hora "de pared" → UTC.** El usuario elige hora local del observador;
-  se guarda `TimeZoneId` en la configuración y se convierte a UTC con
-  `TimeZoneInfo.ConvertTimeToUtc` antes de cualquier cálculo astronómico. Las
-  horas inexistentes por cambio de horario de verano se desplazan una hora.
-- **Ids de zona horaria de Windows** (p. ej. `Central Standard Time (Mexico)`)
-  en `cities.json` y en la configuración; si el id guardado no existe en el
-  sistema se usa la zona local.
-- **Configuración en `%LocalAppData%\AstroPlanner\settings.json`**, con escritura
-  atómica (archivo temporal + rename) para no corromper si la app se cierra a
-  mitad de guardado. Si el archivo es inválido se cargan valores por defecto
-  (Ciudad de México, altitud mínima 20°). Cerrar la ventana de configuración sin
-  guardar descarta los cambios. "Mi plan" se guarda igual en `plan.json`, como
-  `[{"id": "M31", "note": "..."}]`; también se lee el formato de la 0.3-0.5
-  (lista de ids) para no perder planes existentes.
-- **Filtrar no recalcula.** Búsqueda, tipo, constelación, magnitud y "solo
-  visibles" solo vuelven a filtrar (`ApplyFilter`); las posiciones, la noche y
-  la Luna se recalculan (`RecalculateAndFilter`) solo si cambian la hora, el
-  lugar o la altitud mínima. Así escribir en la búsqueda no recalcula el cielo
-  en cada tecla.
-- **Modo en vivo con `TimeProvider`.** `MainViewModel` recibe un `TimeProvider`
-  (en la app, `TimeProvider.System`) para la hora actual y el temporizador; las
-  pruebas usan un reloj manual. El temporizador dispara en otro hilo y el cambio
-  se aplica en el de la interfaz mediante el `SynchronizationContext` capturado.
-- **Planetas.** Elementos orbitales keplerianos de JPL ("Approximate Positions
-  of the Planets", tabla 1, 1800-2050) con corrección por tiempo de luz; error
-  ~1' en los planetas interiores y hasta ~10' en Júpiter/Saturno. Magnitud con
-  las fórmulas del Astronomical Almanac (Meeus 41), incluida la inclinación de
-  los anillos de Saturno (Meeus 45). Son `CelestialObject` de tipo `Planet` con
-  `Planet` asignado; `AstronomyService` calcula su posición y magnitud para cada
-  instante en lugar de aplicar la precesión. No se marca interferencia de la Luna
-  en los planetas: son lo bastante brillantes.
-- **Bitácora en `logbook.json`.** Si el archivo está dañado no se sobrescribe:
-  se aparta como `logbook.corrupto-<fecha>.json` y se empieza vacía, para no
-  perder observaciones al guardar la siguiente.
-- **Internet, opcional y tolerante a fallos.** Un único `HttpClient` (15 s de
-  tiempo límite, `User-Agent` propio). Ningún fallo de red llega a la interfaz
-  como error: se muestra "Sin pronóstico" o simplemente no hay aviso.
-  - *Pronóstico:* Open-Meteo, 7 días por horas en UTC. Se envían las coordenadas
-    redondeadas a 2 decimales (~1 km). Caché de 1 hora por ubicación; tras un
-    fallo no se reintenta en 5 minutos, para no consultar en cada recálculo
-    (modo en vivo, cambios de hora). Se puede desactivar en Configuración.
-  - *Versión nueva:* `GET /repos/Yamato6/AstroPlanner/releases` (incluye
-    pre-releases, ignora borradores y etiquetas que no son versión). **Con el
-    repositorio privado la API responde 404 y no se avisa de nada**; funciona
-    en cuanto el repositorio sea público.
-- **CSV con la cultura del sistema.** Separador de listas y formato numérico de
-  la cultura actual y UTF-8 con BOM, para que Excel lo abra en columnas y con
-  acentos sin pasos extra.
-- **`CelestialObjectType.Unknown`** existe porque M40 (doble estrella) y M73
-  (agrupación de estrellas sin confirmar) no encajan en las categorías estándar.
-- **ScottPlot 5** para el gráfico. La dependencia transitoria
-  `SkiaSharp.Views.WPF` genera el warning NU1701; es conocido de ScottPlot y no
-  afecta al funcionamiento.
-- **Precisión.** `IAstronomyService.GetHorizontal` aplica la precesión J2000 →
-  fecha (~0.36° en 2026) y la refracción estándar (~34' en el horizonte); no
-  aplica nutación ni aberración (&lt; 30"). Se usa UT en lugar de TT (ΔT ≈ 70 s).
-  La elevación del observador se guarda pero no interviene en el cálculo.
-  `CoordinateTransformer` sigue siendo la transformación geométrica pura. Las
-  pruebas de `SolarSystemTests` comparan con los ejemplos resueltos de Meeus y
-  con la puesta/salida del Sol publicadas para CDMX (±3 min).
+Descarga la [última versión](https://github.com/Yamato6/AstroPlanner/releases/latest) y elige:
 
-## Catálogos
+| | Archivo | |
+|---|---|---|
+| **Instalador** (recomendado) | `AstroPlanner_<versión>_Setup.exe` | Menú Inicio, desinstalador y actualizaciones en el mismo lugar. No pide permisos de administrador. |
+| **Portátil** | `AstroPlanner_<versión>_win-x64_portable.zip` | Descomprime y ejecuta `AstroPlanner.exe`. |
 
-- `AstroPlanner.Data/SeedData/messier_objects.json`: los 110 objetos con id,
-  nombre común, constelación, tipo, magnitud aparente y coordenadas ecuatoriales
-  J2000 (ascensión recta en horas, declinación en grados).
-- `AstroPlanner.Data/SeedData/cities.json`: ciudades de México con id, nombre,
-  estado, país, latitud, longitud, elevación y zona horaria.
+- Windows 10 u 11 de 64 bits. **No hace falta instalar .NET.**
+- Windows puede mostrar *"Windows protegió su PC"* porque el ejecutable no está firmado: pulsa **Más información → Ejecutar de todos modos**. Las sumas SHA-256 de cada versión están en `SHA256SUMS.txt`.
+- Tus datos (configuración, plan, bitácora) se guardan en `%LocalAppData%\AstroPlanner`. Actualizar o desinstalar **no los borra**.
 
-## Compilar y ejecutar
+## Primeros pasos
+
+1. **Configuración** → elige tu ciudad o escribe tus coordenadas.
+2. Elige la fecha y la hora, o pulsa **Ahora**.
+3. Selecciona un objeto para ver su curva de la noche y, en **Detalle del objeto**, agrégalo a **Mi plan**.
+
+| Atajo | Acción | Atajo | Acción |
+|---|---|---|---|
+| `Ctrl+F` | Buscar | `Ctrl+P` | Imprimir el plan |
+| `F5` | Hora actual | `Ctrl+E` | Exportar el plan a CSV |
+| `Ctrl+,` | Configuración | `F1` | Acerca de |
+
+## Privacidad
+
+AstroPlanner no tiene cuentas ni recopila datos. Solo se conecta a:
+
+- **open-meteo.com**, para el pronóstico, enviando tu ubicación **redondeada a ~1 km**;
+- **api.github.com**, para comprobar si hay una versión nueva.
+
+Las dos opciones se desactivan en **Configuración → Conexión a internet**.
+
+## Para desarrolladores
 
 ```bash
 dotnet build AstroPlanner.slnx
 dotnet run --project AstroPlanner.UI
+dotnet test AstroPlanner.slnx          # 185 pruebas
 ```
 
-## Ejecutar las pruebas
+Requiere el SDK de .NET 10 (el proyecto apunta a .NET 8 LTS). Cada push pasa por el CI; un tag `v*` publica el `.exe`, el instalador y las sumas en un borrador de release.
 
-```bash
-dotnet test AstroPlanner.slnx
-# Solo pruebas de Core:
-dotnet test AstroPlanner.Tests --filter "FullyQualifiedName~AstronomyMathTests|FullyQualifiedName~CoordinateTransformerTests"
+<details>
+<summary><b>Arquitectura</b></summary>
+
+Clean Architecture + MVVM estricto. `AstroPlanner.Core` no depende de la interfaz.
+
+```
+AstroPlanner.Core/      Modelos, algoritmos astronómicos e interfaces (sin dependencias de UI)
+  ├── Models/             Coordenadas, observador, objetos, Sol/Luna/noche, planetas, clima
+  ├── Algorithms/         AstronomyMath, CoordinateTransformer, Precession, Refraction,
+  │                       SolarSystemCalculator, PlanetCalculator, TimeZoneConversion,
+  │                       ObservationNight
+  ├── Services/           AstronomyService
+  └── Interfaces/         ICelestialRepository, ICityRepository, IAstronomyService,
+                          IWeatherForecastService
+
+AstroPlanner.Data/      Catálogos y datos externos
+  ├── Repositories/       Catálogo Messier y ciudades (JSON incrustado), + planetas
+  ├── Weather/            OpenMeteoForecastService
+  └── SeedData/           messier_objects.json (110 objetos, J2000), cities.json
+
+AstroPlanner.UI/        WPF (.NET 8)
+  ├── MainWindow.xaml     Planificador / Cielo / Detalle / Mi plan / Bitácora
+  ├── SettingsWindow, LogEntryWindow, AboutWindow
+  ├── Themes/Dark.xaml    Paleta y estilos de toda la app (también los colores de los gráficos)
+  ├── ViewModels/         MainViewModel (+ .Online: nubes y versión), Settings, Logbook…
+  ├── Services/           Persistencia JSON atómica, CSV, impresión, registro, versión,
+  │                       enlaces seguros, posición de la ventana, instancia única
+  └── Assets/             Icono
+
+AstroPlanner.Tests/     xUnit + FluentAssertions: Core, Data y UI, con pruebas de
+                        referencia contra los ejemplos resueltos de Meeus
+
+installer/              Script de Inno Setup
+.github/workflows/      CI: compilar (avisos = errores), probar y, con un tag, publicar
 ```
 
-## Dependencias NuGet
+</details>
+
+<details>
+<summary><b>Decisiones de diseño</b></summary>
+
+**Astronomía**
+- **Noche de observación:** de la puesta a la salida del Sol (centro a −0,833°); la noche oscura, con el Sol a −18°. Las 02:00 pertenecen a la noche que empezó el día anterior. En latitudes donde el Sol no se pone se usa 18:00 → 06:00.
+- **Precisión:** precesión J2000 → fecha (~0,36° en 2026) y refracción estándar (~34' en el horizonte). Sin nutación ni aberración (< 30"); UT en lugar de TT (ΔT ≈ 70 s). La elevación se guarda, pero no interviene en el cálculo.
+- **Luna:** fórmulas de baja precisión del Astronomical Almanac (~0,3°) con paralaje y refracción. Estorba si está sobre el horizonte, iluminada ≥ 25 % y a menos de 30° del objeto.
+- **Planetas:** elementos keplerianos de JPL (1800-2050) con corrección por tiempo de luz; error ~1' en los interiores y hasta ~10' en Júpiter y Saturno. Magnitudes de Meeus (cap. 41) con los anillos de Saturno (cap. 45).
+- **Hora "de pared" → UTC:** se guarda el id de zona horaria de Windows y se convierte con `TimeZoneInfo`. Las horas que no existen por el cambio de horario se desplazan una hora.
+
+**Aplicación**
+- **Filtrar no recalcula:** búsqueda y filtros solo filtran; el cielo se recalcula únicamente si cambian la hora, el lugar o la altitud mínima.
+- **Modo en vivo con `TimeProvider`:** las pruebas usan un reloj manual; el temporizador vuelve al hilo de la interfaz con el `SynchronizationContext` capturado.
+- **Entrada inválida:** `ObservableValidator` con `[Range]`; con un valor fuera de rango se muestra un aviso y se conserva el último cálculo válido.
+- **Datos:** JSON en `%LocalAppData%\AstroPlanner`, con escritura atómica (temporal + rename). Una bitácora dañada se aparta como `logbook.corrupto-<fecha>.json` en lugar de sobrescribirse.
+- **Errores:** las excepciones no controladas se registran en `logs\` y se avisa sin cerrar la app.
+- **Una sola instancia:** abrirla dos veces trae al frente la ventana existente, para que dos procesos no escriban el plan a la vez.
+- **Internet opcional:** un único `HttpClient` (15 s). Pronóstico con caché de 1 h por ubicación y 5 min de espera tras un fallo. El aviso de versión solo ofrece pre-releases a quien ya usa una pre-release o una 0.x.
+- **Enlaces:** solo se abren direcciones `https` de github.com y open-meteo.com.
+- **CSV:** separador y números según la cultura del sistema, UTF-8 con BOM, para que Excel lo abra bien.
+
+**Compilación**
+- **.NET 8 LTS** como destino, compilado con el SDK 10.
+- **Un único `.exe` autocontenido y comprimido** (~76 MB en lugar de ~175 MB, a cambio de ~0,2 s más al abrir). Los catálogos van incrustados.
+- **NU1701 suprimido:** lo provoca `SkiaSharp.Views.WPF` (dependencia de ScottPlot), que solo declara .NET Framework pero funciona en .NET 8.
+
+</details>
+
+<details>
+<summary><b>Dependencias</b></summary>
 
 | Proyecto | Paquete | Versión |
 |---|---|---|
 | UI | CommunityToolkit.Mvvm | 8.4.2 |
 | UI | Microsoft.Extensions.DependencyInjection | 10.0.13 |
 | UI | ScottPlot.WPF | 5.1.59 |
-| Tests | xunit | 2.9.3 |
-| Tests | xunit.runner.visualstudio | 3.1.4 |
+| Tests | xunit · xunit.runner.visualstudio | 2.9.3 · 3.1.4 |
 | Tests | FluentAssertions | 8.11.0 |
-| Tests | Microsoft.NET.Test.Sdk | 18.11.0 |
-| Tests | coverlet.collector | 6.0.4 |
+| Tests | Microsoft.NET.Test.Sdk · coverlet.collector | 18.11.0 · 6.0.4 |
 
-## Hoja de ruta
+</details>
 
-**0.5 (hecho):** Sol y noche real, Luna (fase, posición, distancia a cada
-objeto), precesión, refracción y pruebas de referencia.
+## Historial
 
-**0.6 (hecho):** búsqueda y filtro de magnitud, modo en vivo, Mi plan con
-orden por culminación, notas, CSV e impresión, y carta polar del cielo.
+Los cambios de cada versión están en el [CHANGELOG](CHANGELOG.md).
 
-**0.7 (hecho):** planetas (posición, magnitud, fase, tamaño) y bitácora de
-observaciones con progreso del maratón Messier.
+## Créditos y licencia
 
-**0.8 (hecho):** pronóstico de nubes por hora (Open-Meteo) y aviso de versión
-nueva (GitHub), ambos opcionales y tolerantes a fallos.
+- Pronóstico de nubes: [Open-Meteo.com](https://open-meteo.com/) (datos bajo [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)).
+- Algoritmos: Jean Meeus, *Astronomical Algorithms* (2.ª ed.), y elementos orbitales aproximados del JPL (NASA).
+- Gráficos: [ScottPlot](https://scottplot.net/).
 
-**0.9 → 1.0:** instalador (Inno Setup) y estilo Fluent de Windows 11.
+© 2026 Yamato6 · [Licencia MIT](LICENSE)

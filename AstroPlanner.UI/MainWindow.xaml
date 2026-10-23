@@ -1,4 +1,4 @@
-﻿<Window x:Class="AstroPlanner.UI.MainWindow"
+<Window x:Class="AstroPlanner.UI.MainWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
@@ -8,277 +8,39 @@
         mc:Ignorable="d"
         Title="AstroPlanner - Planificador de observaciones"
         Height="800" Width="1400" MinHeight="640" MinWidth="1080"
-        Background="#0D1726">
+        WindowStartupLocation="CenterScreen"
+        PreviewKeyDown="OnPreviewKeyDown"
+        Background="{StaticResource WindowBackgroundBrush}">
     <Window.Resources>
-        <SolidColorBrush x:Key="NightPanelBrush" Color="#172033"/>
-        <SolidColorBrush x:Key="NightCardBrush" Color="#182943"/>
-        <SolidColorBrush x:Key="NightBorderBrush" Color="#2A425F"/>
-        <SolidColorBrush x:Key="NightTextBrush" Color="#D7E3F4"/>
-        <SolidColorBrush x:Key="NightMutedTextBrush" Color="#8FA8C8"/>
-        <SolidColorBrush x:Key="AccentBrush" Color="#55C7E8"/>
+        <!-- Colores y estilos compartidos: Themes/Dark.xaml -->
         <BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter"/>
         <converters:BooleanToTextConverter x:Key="ObservedMarkConverter" TrueText="✓" FalseText=""/>
         <converters:BooleanToVisibilityConverter x:Key="InverseBooleanToVisibilityConverter" Invert="True"/>
+        <converters:DisplayNameConverter x:Key="DisplayNameConverter"/>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource NightTextBrush}"/>
+        </Style>
+        <Style TargetType="Label">
+            <Setter Property="Foreground" Value="{StaticResource LabelTextBrush}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="0,0,6,0"/>
+        </Style>
+        <Style TargetType="TextBox" BasedOn="{StaticResource DarkTextBoxStyle}"/>
+        <Style TargetType="CheckBox" BasedOn="{StaticResource DarkCheckBoxStyle}"/>
+        <Style x:Key="FilterLabelStyle" TargetType="TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center"/>
+            <Setter Property="Margin" Value="0,0,6,0"/>
+            <Setter Property="Foreground" Value="{StaticResource LabelTextBrush}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+        </Style>
         <Style x:Key="CenteredCellStyle" TargetType="TextBlock">
             <Setter Property="TextAlignment" Value="Center"/>
         </Style>
         <Style x:Key="ObservedCellStyle" TargetType="TextBlock">
             <Setter Property="TextAlignment" Value="Center"/>
-            <Setter Property="Foreground" Value="#8BE0B2"/>
+            <Setter Property="Foreground" Value="{StaticResource SuccessSoftBrush}"/>
             <Setter Property="FontWeight" Value="Bold"/>
             <Setter Property="ToolTip" Value="Ya observado (está en tu bitácora)"/>
-        </Style>
-        <Style x:Key="DarkTabItemStyle" TargetType="TabItem">
-            <Setter Property="Foreground" Value="#B8C7DD"/>
-            <Setter Property="Background" Value="#14233A"/>
-            <Setter Property="BorderBrush" Value="#36557D"/>
-            <Setter Property="BorderThickness" Value="1,1,1,0"/>
-            <Setter Property="Padding" Value="14,7"/>
-            <Setter Property="Margin" Value="0,0,4,0"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="TabItem">
-                        <Border x:Name="TabBorder"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="5,5,0,0"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter ContentSource="Header"
-                                              HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"
-                                              TextElement.Foreground="{TemplateBinding Foreground}"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="TabBorder" Property="Background" Value="#1B2D4A"/>
-                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="#5A85B8"/>
-                                <Setter Property="Foreground" Value="#EAF2FF"/>
-                            </Trigger>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="TabBorder" Property="Background" Value="#203A5F"/>
-                                <Setter TargetName="TabBorder" Property="BorderBrush" Value="#5FA8FF"/>
-                                <Setter Property="Foreground" Value="#FFFFFF"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter Property="Opacity" Value="0.45"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-        <Style x:Key="DarkTabControlStyle" TargetType="TabControl">
-            <Setter Property="Background" Value="#0F1B2D"/>
-            <Setter Property="BorderBrush" Value="#36557D"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="0"/>
-        </Style>
-        <Style TargetType="TextBlock">
-            <Setter Property="Foreground" Value="{StaticResource NightTextBrush}"/>
-        </Style>
-        <Style TargetType="Label">
-            <Setter Property="Foreground" Value="#C9D7ED"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Setter Property="Margin" Value="0,0,6,0"/>
-        </Style>
-        <Style TargetType="TextBox">
-            <Setter Property="Background" Value="#223653"/>
-            <Setter Property="Foreground" Value="White"/>
-            <Setter Property="BorderBrush" Value="{StaticResource NightBorderBrush}"/>
-        </Style>
-        <Style TargetType="CheckBox">
-            <Setter Property="Foreground" Value="#C9D7ED"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-        </Style>
-        <Style x:Key="DarkComboBoxStyle" TargetType="ComboBox">
-            <Setter Property="Foreground" Value="#EAF2FF"/>
-            <Setter Property="Background" Value="#14233A"/>
-            <Setter Property="BorderBrush" Value="#36557D"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Height" Value="32"/>
-            <Setter Property="Padding" Value="10,0,8,0"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ComboBox">
-                        <Grid>
-                            <ToggleButton x:Name="ToggleButton"
-                                          Background="{TemplateBinding Background}"
-                                          BorderBrush="{TemplateBinding BorderBrush}"
-                                          BorderThickness="{TemplateBinding BorderThickness}"
-                                          Foreground="{TemplateBinding Foreground}"
-                                          Focusable="False"
-                                          IsChecked="{Binding IsDropDownOpen, RelativeSource={RelativeSource TemplatedParent}, Mode=TwoWay}"
-                                          ClickMode="Press">
-                                <ToggleButton.Template>
-                                    <ControlTemplate TargetType="ToggleButton">
-                                        <Border x:Name="ComboBorder"
-                                                Background="{TemplateBinding Background}"
-                                                BorderBrush="{TemplateBinding BorderBrush}"
-                                                BorderThickness="{TemplateBinding BorderThickness}"
-                                                CornerRadius="4">
-                                            <Grid>
-                                                <ContentPresenter Margin="10,0,28,0"
-                                                                  VerticalAlignment="Center"
-                                                                  HorizontalAlignment="Left"
-                                                                  Content="{Binding SelectionBoxItem, RelativeSource={RelativeSource AncestorType=ComboBox}}"
-                                                                  ContentTemplate="{Binding SelectionBoxItemTemplate, RelativeSource={RelativeSource AncestorType=ComboBox}}"
-                                                                  ContentStringFormat="{Binding SelectionBoxItemStringFormat, RelativeSource={RelativeSource AncestorType=ComboBox}}" />
-                                                <Path Width="10" Height="6" Margin="0,0,10,0"
-                                                      HorizontalAlignment="Right" VerticalAlignment="Center"
-                                                      Fill="#B8C7DD" Data="M 0 0 L 5 5 L 10 0 Z" />
-                                            </Grid>
-                                        </Border>
-                                        <ControlTemplate.Triggers>
-                                            <Trigger Property="IsMouseOver" Value="True">
-                                                <Setter TargetName="ComboBorder" Property="Background" Value="#1B2D4A"/>
-                                                <Setter TargetName="ComboBorder" Property="BorderBrush" Value="#5A85B8"/>
-                                            </Trigger>
-                                            <Trigger Property="IsChecked" Value="True">
-                                                <Setter TargetName="ComboBorder" Property="BorderBrush" Value="#5FA8FF"/>
-                                            </Trigger>
-                                            <Trigger Property="IsEnabled" Value="False">
-                                                <Setter TargetName="ComboBorder" Property="Opacity" Value="0.55"/>
-                                            </Trigger>
-                                        </ControlTemplate.Triggers>
-                                    </ControlTemplate>
-                                </ToggleButton.Template>
-                            </ToggleButton>
-                            <Popup x:Name="Popup" AllowsTransparency="True" Placement="Bottom"
-                                   IsOpen="{TemplateBinding IsDropDownOpen}" PopupAnimation="Slide">
-                                <Border Margin="0,4,0,0"
-                                        MinWidth="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=ComboBox}}"
-                                        Background="#14233A" BorderBrush="#36557D" BorderThickness="1" CornerRadius="4">
-                                    <ScrollViewer MaxHeight="220" CanContentScroll="True">
-                                        <ItemsPresenter />
-                                    </ScrollViewer>
-                                </Border>
-                            </Popup>
-                        </Grid>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-        <Style x:Key="DarkComboBoxItemStyle" TargetType="ComboBoxItem">
-            <Setter Property="Foreground" Value="#EAF2FF"/>
-            <Setter Property="Background" Value="#14233A"/>
-            <Setter Property="Padding" Value="10,7"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ComboBoxItem">
-                        <Border x:Name="ItemBorder" Padding="{TemplateBinding Padding}" Background="{TemplateBinding Background}">
-                            <ContentPresenter />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsHighlighted" Value="True">
-                                <Setter TargetName="ItemBorder" Property="Background" Value="#203A5F"/>
-                            </Trigger>
-                            <Trigger Property="IsSelected" Value="True">
-                                <Setter TargetName="ItemBorder" Property="Background" Value="#274C77"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-        <Style x:Key="SecondaryButtonStyle" TargetType="Button">
-            <Setter Property="Foreground" Value="#EAF2FF"/>
-            <Setter Property="Background" Value="#1B2D4A"/>
-            <Setter Property="BorderBrush" Value="#36557D"/>
-            <Setter Property="BorderThickness" Value="1"/>
-            <Setter Property="Padding" Value="14,7"/>
-            <Setter Property="Margin" Value="4,0,0,0"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#203A5F"/>
-                    <Setter Property="BorderBrush" Value="#55C7E8"/>
-                </Trigger>
-                <Trigger Property="IsPressed" Value="True">
-                    <Setter Property="Background" Value="#274C77"/>
-                </Trigger>
-                <Trigger Property="IsEnabled" Value="False">
-                    <Setter Property="Opacity" Value="0.5"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-        <Style x:Key="PrimaryButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
-            <Setter Property="Background" Value="#2F80ED"/>
-            <Setter Property="BorderBrush" Value="#4B9BFF"/>
-            <Setter Property="FontWeight" Value="SemiBold"/>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="#4B9BFF"/>
-                </Trigger>
-                <Trigger Property="IsPressed" Value="True">
-                    <Setter Property="Background" Value="#2468C5"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-        <Style x:Key="NightDataGridStyle" TargetType="DataGrid">
-            <Setter Property="AutoGenerateColumns" Value="False"/>
-            <Setter Property="CanUserAddRows" Value="False"/>
-            <Setter Property="IsReadOnly" Value="True"/>
-            <Setter Property="HeadersVisibility" Value="Column"/>
-            <Setter Property="EnableRowVirtualization" Value="True"/>
-            <Setter Property="Background" Value="#0F1B2D"/>
-            <Setter Property="Foreground" Value="#EAF2FF"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="RowBackground" Value="#0F1B2D"/>
-            <Setter Property="AlternatingRowBackground" Value="#14233A"/>
-            <Setter Property="AlternationCount" Value="2"/>
-            <Setter Property="GridLinesVisibility" Value="Horizontal"/>
-            <Setter Property="HorizontalGridLinesBrush" Value="#2B3F5E"/>
-            <Setter Property="VerticalGridLinesBrush" Value="Transparent"/>
-            <Style.Resources>
-                <Style TargetType="ScrollBar">
-                    <Setter Property="Background" Value="#0F1B2D"/>
-                    <Setter Property="Foreground" Value="#36557D"/>
-                    <Setter Property="Width" Value="12"/>
-                    <Setter Property="MinWidth" Value="12"/>
-                </Style>
-                <Style TargetType="DataGridColumnHeader">
-                    <Setter Property="Background" Value="#1B2D4A"/>
-                    <Setter Property="Foreground" Value="#EAF2FF"/>
-                    <Setter Property="FontWeight" Value="SemiBold"/>
-                    <Setter Property="BorderBrush" Value="#2B3F5E"/>
-                    <Setter Property="BorderThickness" Value="0,0,0,1"/>
-                    <Setter Property="Padding" Value="8,7"/>
-                </Style>
-                <Style TargetType="DataGridCell">
-                    <Setter Property="Foreground" Value="#EAF2FF"/>
-                    <Setter Property="BorderBrush" Value="#2B3F5E"/>
-                    <Setter Property="BorderThickness" Value="0,0,0,1"/>
-                    <Setter Property="Padding" Value="6,4"/>
-                    <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-                    <Style.Triggers>
-                        <!-- Sin esto WPF usa el color de selección inactiva del sistema
-                             (casi blanco) cuando la tabla no tiene el foco. -->
-                        <Trigger Property="IsSelected" Value="True">
-                            <Setter Property="Background" Value="#274C77"/>
-                            <Setter Property="Foreground" Value="White"/>
-                            <Setter Property="BorderBrush" Value="#2B3F5E"/>
-                        </Trigger>
-                    </Style.Triggers>
-                </Style>
-                <Style TargetType="DataGridRow">
-                    <Setter Property="Background" Value="#0F1B2D"/>
-                    <Setter Property="Foreground" Value="#EAF2FF"/>
-                    <Style.Triggers>
-                        <Trigger Property="ItemsControl.AlternationIndex" Value="1">
-                            <Setter Property="Background" Value="#14233A"/>
-                        </Trigger>
-                        <Trigger Property="IsMouseOver" Value="True">
-                            <Setter Property="Background" Value="#203A5F"/>
-                        </Trigger>
-                        <Trigger Property="IsSelected" Value="True">
-                            <Setter Property="Background" Value="#274C77"/>
-                            <Setter Property="Foreground" Value="White"/>
-                        </Trigger>
-                    </Style.Triggers>
-                </Style>
-            </Style.Resources>
         </Style>
         <Style x:Key="NumericCellStyle" TargetType="TextBlock">
             <Setter Property="TextAlignment" Value="Right"/>
@@ -289,7 +51,7 @@
             <Setter Property="ToolTip" Value="Distancia angular a la Luna"/>
             <Style.Triggers>
                 <DataTrigger Binding="{Binding MoonInterferes}" Value="True">
-                    <Setter Property="Foreground" Value="#FFB45E"/>
+                    <Setter Property="Foreground" Value="{StaticResource WarningBrush}"/>
                     <Setter Property="FontWeight" Value="SemiBold"/>
                     <Setter Property="ToolTip" Value="La Luna, brillante y cercana, dificulta la observación"/>
                 </DataTrigger>
@@ -301,7 +63,7 @@
             <Setter Property="ToolTip" Value="Distancia angular a la Luna"/>
             <Style.Triggers>
                 <DataTrigger Binding="{Binding Row.MoonInterferes}" Value="True">
-                    <Setter Property="Foreground" Value="#FFB45E"/>
+                    <Setter Property="Foreground" Value="{StaticResource WarningBrush}"/>
                     <Setter Property="FontWeight" Value="SemiBold"/>
                     <Setter Property="ToolTip" Value="La Luna, brillante y cercana, dificulta la observación"/>
                 </DataTrigger>
@@ -309,19 +71,19 @@
         </Style>
         <Style x:Key="PlanStatusCellStyle" TargetType="TextBlock">
             <Setter Property="TextAlignment" Value="Center"/>
-            <Setter Property="Foreground" Value="#62E6A7"/>
+            <Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/>
             <Style.Triggers>
                 <DataTrigger Binding="{Binding Row.IsVisible}" Value="False">
-                    <Setter Property="Foreground" Value="#FF6B6B"/>
+                    <Setter Property="Foreground" Value="{StaticResource DangerBrush}"/>
                 </DataTrigger>
             </Style.Triggers>
         </Style>
         <Style x:Key="StatusCellStyle" TargetType="TextBlock">
             <Setter Property="TextAlignment" Value="Center"/>
-            <Setter Property="Foreground" Value="#62E6A7"/>
+            <Setter Property="Foreground" Value="{StaticResource SuccessBrush}"/>
             <Style.Triggers>
                 <DataTrigger Binding="{Binding IsVisible}" Value="False">
-                    <Setter Property="Foreground" Value="#FF6B6B"/>
+                    <Setter Property="Foreground" Value="{StaticResource DangerBrush}"/>
                 </DataTrigger>
             </Style.Triggers>
         </Style>
@@ -335,16 +97,15 @@
         </Grid.RowDefinitions>
 
         <!-- Aviso de versión nueva (solo si la hay) -->
-        <Border Grid.Row="2" Margin="0,0,0,4" Padding="12,8" CornerRadius="6" Background="#1E3A5C"
-                BorderBrush="#55C7E8" BorderThickness="1"
+        <Border Grid.Row="2" Margin="0,0,0,4" Padding="12,8" CornerRadius="6" Background="{StaticResource BannerBrush}"
+                BorderBrush="{StaticResource AccentBrush}" BorderThickness="1"
                 Visibility="{Binding HasUpdate, Converter={StaticResource BooleanToVisibilityConverter}}">
             <DockPanel>
                 <Button DockPanel.Dock="Right" Style="{StaticResource SecondaryButtonStyle}" Content="Ahora no"
                         Command="{Binding DismissUpdateCommand}"/>
                 <TextBlock VerticalAlignment="Center" Foreground="White">
                     <Run Text="{Binding UpdateBannerText, Mode=OneWay}"/>
-                    <Hyperlink NavigateUri="{Binding AvailableUpdate.Url}" RequestNavigate="OnUpdateLinkClicked"
-                               Foreground="#55C7E8">Descargar</Hyperlink>
+                    <Hyperlink NavigateUri="{Binding AvailableUpdate.Url}" RequestNavigate="OnLinkClicked">Descargar</Hyperlink>
                 </TextBlock>
             </DockPanel>
         </Border>
@@ -361,36 +122,15 @@
                 </Grid.ColumnDefinitions>
                 <StackPanel Grid.Column="0" Margin="0,0,24,0" VerticalAlignment="Center">
                     <TextBlock Foreground="White" FontSize="24" FontWeight="SemiBold" Text="AstroPlanner"/>
-                    <TextBlock Foreground="#8FA8C8" FontSize="12" Text="Planificador de observaciones"/>
+                    <TextBlock Foreground="{StaticResource NightMutedTextBrush}" FontSize="12" Text="Planificador de observaciones"/>
                 </StackPanel>
                 <StackPanel Grid.Column="1" Margin="0,0,14,0">
-                    <TextBlock Foreground="#B8C7E0" Text="Fecha y hora local"/>
+                    <TextBlock Foreground="{StaticResource TabTextBrush}" Text="Fecha y hora local"/>
                     <StackPanel Orientation="Horizontal" Margin="0,2,0,0">
-                        <DatePicker Width="124" VerticalContentAlignment="Center"
-                                    Language="es-MX" SelectedDateFormat="Short"
-                                    Background="#0F1B2D" BorderBrush="#36557D" Foreground="White"
-                                    SelectedDate="{Binding ObservationDate}">
-                            <DatePicker.Resources>
-                                <Style TargetType="DatePickerTextBox">
-                                    <Setter Property="Background" Value="#0F1B2D"/>
-                                    <Setter Property="Foreground" Value="White"/>
-                                    <Setter Property="CaretBrush" Value="White"/>
-                                    <Setter Property="VerticalContentAlignment" Value="Center"/>
-                                    <!-- La plantilla por defecto ignora Background y pinta la caja en blanco. -->
-                                    <Setter Property="Template">
-                                        <Setter.Value>
-                                            <ControlTemplate TargetType="DatePickerTextBox">
-                                                <Border Background="{TemplateBinding Background}" Padding="4,2">
-                                                    <ScrollViewer x:Name="PART_ContentHost" VerticalAlignment="Center"/>
-                                                </Border>
-                                            </ControlTemplate>
-                                        </Setter.Value>
-                                    </Setter>
-                                </Style>
-                            </DatePicker.Resources>
-                        </DatePicker>
+                        <DatePicker Width="124" Style="{StaticResource DarkDatePickerStyle}"
+                                    AutomationProperties.Name="Fecha de observación"
+                                    SelectedDate="{Binding ObservationDate}"/>
                         <ComboBox Style="{StaticResource DarkComboBoxStyle}"
-                                  ItemContainerStyle="{StaticResource DarkComboBoxItemStyle}"
                                   Width="58" Margin="6,0,0,0" MaxDropDownHeight="240"
                                   ToolTip="Hora"
                                   AutomationProperties.AutomationId="HourCombo" AutomationProperties.Name="Hora"
@@ -398,7 +138,6 @@
                                   SelectedItem="{Binding ObservationHour}"/>
                         <TextBlock Text=":" Foreground="White" Margin="3,0" VerticalAlignment="Center"/>
                         <ComboBox Style="{StaticResource DarkComboBoxStyle}"
-                                  ItemContainerStyle="{StaticResource DarkComboBoxItemStyle}"
                                   Width="58" MaxDropDownHeight="240"
                                   ToolTip="Minuto"
                                   AutomationProperties.AutomationId="MinuteCombo" AutomationProperties.Name="Minuto"
@@ -413,22 +152,27 @@
                     </StackPanel>
                 </StackPanel>
                 <StackPanel Grid.Column="2" Margin="0,0,14,0">
-                    <TextBlock Foreground="#B8C7E0" Text="Zona horaria"/>
+                    <TextBlock Foreground="{StaticResource TabTextBrush}" Text="Zona horaria"/>
                     <TextBlock Foreground="White" Text="{Binding TimeZoneId}"/>
                 </StackPanel>
                 <StackPanel Grid.Column="3">
-                    <TextBlock Foreground="#B8C7E0" Text="Ubicación activa"/>
-                    <TextBlock Foreground="White" Text="{Binding ActiveLocationName}"/>
-                    <TextBlock Foreground="#B8C7E0" Text="{Binding LocationSummary}"/>
+                    <TextBlock Foreground="{StaticResource TabTextBrush}" Text="Ubicación activa"/>
+                    <TextBlock Foreground="White" Text="{Binding ActiveLocationName}" TextTrimming="CharacterEllipsis" ToolTip="{Binding ActiveLocationName}"/>
+                    <TextBlock Foreground="{StaticResource TabTextBrush}" Text="{Binding LocationSummary}"/>
                 </StackPanel>
                 <StackPanel Grid.Column="4" Orientation="Horizontal" VerticalAlignment="Center">
-                    <Button Style="{StaticResource SecondaryButtonStyle}" Content="Configuración" Click="OnSettingsClicked"/>
-                    <Button Style="{StaticResource SecondaryButtonStyle}" Command="{Binding ResetFiltersCommand}" Content="Restablecer"/>
+                    <Button Style="{StaticResource SecondaryButtonStyle}" Content="Configuración" Click="OnSettingsClicked"
+                            ToolTip="Ubicación, zona horaria y preferencias (Ctrl+,)"/>
+                    <Button Style="{StaticResource SecondaryButtonStyle}" Command="{Binding ResetFiltersCommand}" Content="Restablecer"
+                            ToolTip="Quita la búsqueda y los filtros, y recupera la altitud y magnitud guardadas"/>
                     <Button Style="{StaticResource PrimaryButtonStyle}" Content="Ahora" Command="{Binding SetNowCommand}"
-                            ToolTip="Pone la hora actual de la ubicación del observador"/>
+                            ToolTip="Pone la hora actual de la ubicación del observador (F5)"/>
                     <CheckBox VerticalAlignment="Center" Margin="12,0,0,0" Foreground="White" Content="En vivo"
                               IsChecked="{Binding IsLive}"
                               ToolTip="Sigue la hora actual y actualiza todo cada minuto. Se desactiva al elegir otra hora."/>
+                    <Button Style="{StaticResource SecondaryButtonStyle}" Margin="12,0,0,0" Content="?" Width="34"
+                            Click="OnAboutClicked" ToolTip="Acerca de AstroPlanner (F1)"
+                            AutomationProperties.Name="Acerca de AstroPlanner"/>
                 </StackPanel>
             </Grid>
         </Border>
@@ -436,48 +180,53 @@
         <UniformGrid Grid.Row="1" Columns="6" Margin="0,0,0,12">
             <Border Background="{StaticResource NightCardBrush}" CornerRadius="7" Padding="14" Margin="0,0,6,0">
                 <StackPanel>
-                    <TextBlock Foreground="#8FA8C8" Text="Objetos del catálogo"/>
+                    <TextBlock Foreground="{StaticResource NightMutedTextBrush}" Text="Objetos del catálogo"/>
                     <TextBlock Foreground="White" FontSize="24" FontWeight="SemiBold" Text="{Binding CatalogCount}"/>
-                    <TextBlock Foreground="#8FA8C8" FontSize="12" Text="{Binding ObservedSummaryText}"
+                    <TextBlock Foreground="{StaticResource NightMutedTextBrush}" FontSize="12" Text="{Binding ObservedSummaryText}"
                                ToolTip="Objetos Messier con al menos una observación en la bitácora"/>
                 </StackPanel>
             </Border>
             <Border Background="{StaticResource NightCardBrush}" CornerRadius="7" Padding="14" Margin="6,0">
                 <StackPanel>
-                    <TextBlock Foreground="#8FA8C8" Text="Objetos visibles"/>
-                    <TextBlock Foreground="#8BE0B2" FontSize="24" FontWeight="SemiBold" Text="{Binding VisibleObjectsCount}"/>
+                    <TextBlock Foreground="{StaticResource NightMutedTextBrush}" Text="Objetos visibles"/>
+                    <TextBlock Foreground="{StaticResource SuccessSoftBrush}" FontSize="24" FontWeight="SemiBold" Text="{Binding VisibleObjectsCount}"/>
                 </StackPanel>
             </Border>
             <!-- Noche oscura: fin → inicio del crepúsculo astronómico (Sol a -18°) -->
             <Border Background="{StaticResource NightCardBrush}" CornerRadius="7" Padding="14" Margin="6,0"
                     ToolTip="Noche oscura: el Sol está más de 18° bajo el horizonte.">
                 <StackPanel>
-                    <TextBlock Foreground="#8FA8C8" Text="Noche oscura"/>
-                    <TextBlock Foreground="#B9A7FF" FontSize="24" FontWeight="SemiBold" Text="{Binding DarkNightText}"/>
-                    <TextBlock Foreground="#8FA8C8" FontSize="12" Text="{Binding SunTimesText}" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Foreground="{StaticResource NightMutedTextBrush}" Text="Noche oscura"/>
+                    <TextBlock Foreground="{StaticResource DarknessBrush}" FontSize="24" FontWeight="SemiBold" Text="{Binding DarkNightText}"/>
+                    <TextBlock Foreground="{StaticResource NightMutedTextBrush}" FontSize="12" Text="{Binding SunTimesText}" TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
             </Border>
             <Border Background="{StaticResource NightCardBrush}" CornerRadius="7" Padding="14" Margin="6,0"
                     ToolTip="Fase y altura de la Luna a la hora elegida.">
                 <StackPanel>
-                    <TextBlock Foreground="#8FA8C8" Text="Luna"/>
-                    <TextBlock Foreground="#E8E3C8" FontSize="24" FontWeight="SemiBold" Text="{Binding MoonIlluminationText}"/>
-                    <TextBlock Foreground="#8FA8C8" FontSize="12" Text="{Binding MoonDetailText}" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Foreground="{StaticResource NightMutedTextBrush}" Text="Luna"/>
+                    <TextBlock Foreground="{StaticResource MoonBrush}" FontSize="24" FontWeight="SemiBold" Text="{Binding MoonIlluminationText}"/>
+                    <TextBlock Foreground="{StaticResource NightMutedTextBrush}" FontSize="12" Text="{Binding MoonDetailText}" TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
             </Border>
             <!-- Pronóstico de nubes durante la noche oscura (Open-Meteo) -->
             <Border Background="{StaticResource NightCardBrush}" CornerRadius="7" Padding="14" Margin="6,0"
                     ToolTip="{Binding CloudDetailText}">
                 <StackPanel>
-                    <TextBlock Foreground="#8FA8C8" Text="Nubes esta noche"/>
-                    <TextBlock Foreground="#C9D7ED" FontSize="24" FontWeight="SemiBold" Text="{Binding CloudCoverText}"/>
-                    <TextBlock Foreground="#8FA8C8" FontSize="12" Text="{Binding CloudDetailText}" TextTrimming="CharacterEllipsis"/>
+                    <TextBlock Foreground="{StaticResource NightMutedTextBrush}" Text="Nubes esta noche"/>
+                    <TextBlock Foreground="{StaticResource LabelTextBrush}" FontSize="24" FontWeight="SemiBold" Text="{Binding CloudCoverText}"/>
+                    <TextBlock Foreground="{StaticResource NightMutedTextBrush}" FontSize="12" Text="{Binding CloudDetailText}" TextTrimming="CharacterEllipsis"/>
+                    <!-- Atribución exigida por la licencia CC BY 4.0 de Open-Meteo -->
+                    <TextBlock FontSize="10" Margin="0,2,0,0" Foreground="{StaticResource PlaceholderTextBrush}">
+                        <Run Text="Datos:"/>
+                        <Hyperlink NavigateUri="https://open-meteo.com/" RequestNavigate="OnLinkClicked">Open-Meteo.com</Hyperlink>
+                    </TextBlock>
                 </StackPanel>
             </Border>
             <Border Background="{StaticResource NightCardBrush}" CornerRadius="7" Padding="14" Margin="6,0,0,0">
                 <StackPanel>
-                    <TextBlock Foreground="#8FA8C8" Text="Altitud mínima"/>
-                    <TextBlock Foreground="#FFB45E" FontSize="24" FontWeight="SemiBold">
+                    <TextBlock Foreground="{StaticResource NightMutedTextBrush}" Text="Altitud mínima"/>
+                    <TextBlock Foreground="{StaticResource WarningBrush}" FontSize="24" FontWeight="SemiBold">
                         <Run Text="{Binding MinimumAltitude, StringFormat={}{0:0.#}}"/><Run Text="°"/>
                     </TextBlock>
                 </StackPanel>
@@ -485,9 +234,9 @@
         </UniformGrid>
 
         <!-- Planificador principal -->
-        <TabControl Grid.Row="3" Margin="16,12,16,16"
+        <TabControl x:Name="Tabs" Grid.Row="3"
                     Style="{StaticResource DarkTabControlStyle}">
-            <TabItem Header="Planificador" Style="{StaticResource DarkTabItemStyle}">
+            <TabItem x:Name="PlannerTab" Header="Planificador" Style="{StaticResource DarkTabItemStyle}">
             <Grid Margin="12">
                     <Grid.ColumnDefinitions>
                         <!-- La tabla necesita ~650 px para mostrar todas sus columnas. -->
@@ -498,7 +247,7 @@
 
                     <!-- Panel izquierdo: filtros + tabla -->
                     <Border Grid.Column="0" Padding="1"
-                            Background="#0F1B2D"
+                            Background="{StaticResource SurfaceBrush}"
                             BorderBrush="{StaticResource NightBorderBrush}" BorderThickness="1" CornerRadius="6">
                         <Grid Margin="8">
                             <Grid.RowDefinitions>
@@ -512,12 +261,12 @@
                             <WrapPanel Grid.Row="0" Margin="0,0,0,2">
                                 <!-- Búsqueda por id, nombre o constelación (sin distinguir acentos) -->
                                 <Grid Width="210" Margin="0,0,12,6">
-                                    <TextBox x:Name="SearchBox" VerticalContentAlignment="Center" Padding="22,3,4,3"
-                                             Background="#0F1B2D" Foreground="White" CaretBrush="White" BorderBrush="#36557D"
+                                    <TextBox x:Name="SearchBox" Padding="22,3,4,3" Background="{StaticResource SurfaceBrush}"
+                                             AutomationProperties.Name="Buscar"
                                              Text="{Binding SearchText, UpdateSourceTrigger=PropertyChanged}"
-                                             ToolTip="Busca por id (M31), nombre (Andrómeda) o constelación (Orión)"/>
-                                    <TextBlock Text="⌕" Foreground="#8FA8C8" Margin="7,0,0,1" VerticalAlignment="Center" IsHitTestVisible="False"/>
-                                    <TextBlock Text="Buscar M31, Andrómeda, Orión…" Foreground="#5D7392" Margin="24,0,0,0"
+                                             ToolTip="Busca por id (M31), nombre (Andrómeda) o constelación (Orión). Ctrl+F"/>
+                                    <TextBlock Text="⌕" Foreground="{StaticResource NightMutedTextBrush}" Margin="7,0,0,1" VerticalAlignment="Center" IsHitTestVisible="False"/>
+                                    <TextBlock Text="Buscar M31, Andrómeda, Orión…" Foreground="{StaticResource PlaceholderTextBrush}" Margin="24,0,0,0"
                                                VerticalAlignment="Center" IsHitTestVisible="False">
                                         <TextBlock.Style>
                                             <Style TargetType="TextBlock">
@@ -532,26 +281,29 @@
                                     </TextBlock>
                                 </Grid>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,12,6">
-                                    <TextBlock VerticalAlignment="Center" Margin="0,0,6,0" Foreground="#C9D7ED" FontWeight="SemiBold" Text="Tipo"/>
+                                    <TextBlock Style="{StaticResource FilterLabelStyle}" Text="Tipo"/>
                                     <ComboBox Style="{StaticResource DarkComboBoxStyle}"
-                                              ItemContainerStyle="{StaticResource DarkComboBoxItemStyle}"
-                                              Width="150" Margin="0,0,12,0"
+                                              Width="160" Margin="0,0,12,0" MaxDropDownHeight="320"
+                                              AutomationProperties.Name="Tipo de objeto"
                                               ItemsSource="{Binding TypeFilters}"
-                                              SelectedItem="{Binding TypeFilter}"/>
-                                    <TextBlock VerticalAlignment="Center" Margin="0,0,6,0" Foreground="#C9D7ED" FontWeight="SemiBold" Text="Constelación"/>
+                                              DisplayMemberPath="Label" TextSearch.TextPath="Label"
+                                              SelectedValuePath="Value" SelectedValue="{Binding TypeFilter}"/>
+                                    <TextBlock Style="{StaticResource FilterLabelStyle}" Text="Constelación"/>
                                     <ComboBox Style="{StaticResource DarkComboBoxStyle}"
-                                              ItemContainerStyle="{StaticResource DarkComboBoxItemStyle}"
-                                              Width="150"
+                                              Width="150" MaxDropDownHeight="320"
+                                              AutomationProperties.Name="Constelación"
                                               ItemsSource="{Binding ConstellationFilters}"
-                                              SelectedItem="{Binding ConstellationFilter}"/>
+                                              DisplayMemberPath="Label" TextSearch.TextPath="Label"
+                                              SelectedValuePath="Value" SelectedValue="{Binding ConstellationFilter}"/>
                                 </StackPanel>
                                 <StackPanel Orientation="Horizontal" Margin="0,0,0,6">
-                                    <TextBlock VerticalAlignment="Center" Margin="0,0,6,0" Foreground="#C9D7ED" FontWeight="SemiBold" Text="Alt. mín. (°)"/>
-                                    <TextBox Width="50" Margin="0,0,12,0" VerticalContentAlignment="Center"
+                                    <TextBlock Style="{StaticResource FilterLabelStyle}" Text="Alt. mín. (°)"
+                                               ToolTip="Altitud mínima sobre el horizonte para considerar visible un objeto"/>
+                                    <TextBox Width="50" Margin="0,0,12,0" AutomationProperties.Name="Altitud mínima"
                                              Text="{Binding MinimumAltitude, UpdateSourceTrigger=PropertyChanged}"/>
-                                    <TextBlock VerticalAlignment="Center" Margin="0,0,6,0" Foreground="#C9D7ED" FontWeight="SemiBold" Text="Mag. máx."
+                                    <TextBlock Style="{StaticResource FilterLabelStyle}" Text="Mag. máx."
                                                ToolTip="Oculta los objetos más débiles (mayor número = más débil)"/>
-                                    <TextBox Width="44" Margin="0,0,12,0" VerticalContentAlignment="Center"
+                                    <TextBox Width="44" Margin="0,0,12,0" AutomationProperties.Name="Magnitud máxima"
                                              Text="{Binding MaximumMagnitude, UpdateSourceTrigger=PropertyChanged}"/>
                                     <CheckBox VerticalAlignment="Center" Content="Solo visibles"
                                               IsChecked="{Binding OnlyVisible}"/>
@@ -560,10 +312,10 @@
 
                             <!-- Estado / errores -->
                             <StackPanel Grid.Row="1" Margin="0,0,0,6">
-                                <TextBlock Foreground="#C0392B" TextWrapping="Wrap"
+                                <TextBlock Foreground="{StaticResource DangerBrush}" TextWrapping="Wrap"
                                            Text="{Binding ErrorMessage}"/>
                                 <!-- Aviso de entrada inválida; la tabla conserva el último cálculo válido -->
-                                <TextBlock Foreground="#FF6B6B" TextWrapping="Wrap" FontWeight="SemiBold"
+                                <TextBlock Foreground="{StaticResource DangerBrush}" TextWrapping="Wrap" FontWeight="SemiBold"
                                            Text="{Binding ValidationMessage}">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
@@ -576,7 +328,7 @@
                                     </TextBlock.Style>
                                 </TextBlock>
                                 <!-- Aviso de día o crepúsculo a la hora elegida -->
-                                <TextBlock Foreground="#FFB45E" TextWrapping="Wrap" FontWeight="SemiBold"
+                                <TextBlock Foreground="{StaticResource WarningBrush}" TextWrapping="Wrap" FontWeight="SemiBold"
                                            Text="{Binding SkyBanner}">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
@@ -588,7 +340,7 @@
                                         </Style>
                                     </TextBlock.Style>
                                 </TextBlock>
-                                <TextBlock Foreground="#555" TextWrapping="Wrap">
+                                <TextBlock Foreground="{StaticResource NightMutedTextBrush}" TextWrapping="Wrap">
                                     <Run Text="Mostrando "/><Run Text="{Binding Objects.Count, Mode=OneWay}"/><Run Text=" objetos"/>
                                 </TextBlock>
                             </StackPanel>
@@ -601,9 +353,9 @@
                                     <DataGridTextColumn Header="✓" Binding="{Binding IsObserved, Converter={StaticResource ObservedMarkConverter}}" Width="26"
                                                         ElementStyle="{StaticResource ObservedCellStyle}"/>
                                     <DataGridTextColumn Header="ID" Binding="{Binding Id}" Width="66"/>
-                                    <DataGridTextColumn Header="Nombre" Binding="{Binding CommonName}" Width="*"/>
-                                    <DataGridTextColumn Header="Constelación" Binding="{Binding Constellation}" Width="100"/>
-                                    <DataGridTextColumn Header="Tipo" Binding="{Binding Type}" Width="112"/>
+                                    <DataGridTextColumn Header="Nombre" Binding="{Binding CommonName}" Width="*" ElementStyle="{StaticResource TrimmedCellStyle}"/>
+                                    <DataGridTextColumn Header="Constelación" Binding="{Binding Constellation}" Width="100" ElementStyle="{StaticResource TrimmedCellStyle}"/>
+                                    <DataGridTextColumn Header="Tipo" Binding="{Binding Type, Converter={StaticResource DisplayNameConverter}}" Width="130"/>
                                     <DataGridTextColumn Header="Mag." Binding="{Binding ApparentMagnitude, StringFormat=F1}" Width="50" ElementStyle="{StaticResource NumericCellStyle}"/>
                                     <DataGridTextColumn Header="Altitud" Binding="{Binding AltitudeDegrees, StringFormat=F1}" Width="62" ElementStyle="{StaticResource NumericCellStyle}"/>
                                     <DataGridTextColumn Header="Azimut" Binding="{Binding AzimuthDegrees, StringFormat=F1}" Width="64" ElementStyle="{StaticResource NumericCellStyle}"/>
@@ -622,7 +374,7 @@
 
                     <!-- Panel derecho: gráfico de altitud -->
                     <Border Grid.Column="2" Padding="8"
-                            Background="#0F1B2D"
+                            Background="{StaticResource SurfaceBrush}"
                             BorderBrush="{StaticResource NightBorderBrush}" BorderThickness="1" CornerRadius="6">
                         <Grid>
                             <Grid.RowDefinitions>
@@ -643,7 +395,7 @@
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="270"/>
                     </Grid.ColumnDefinitions>
-                    <Border Grid.Column="0" Padding="8" Background="#0F1B2D"
+                    <Border Grid.Column="0" Padding="8" Background="{StaticResource SurfaceBrush}"
                             BorderBrush="{StaticResource NightBorderBrush}" BorderThickness="1" CornerRadius="6">
                         <ScottPlot:WpfPlot x:Name="SkyPlot" MouseLeftButtonUp="OnSkyPlotClicked"/>
                     </Border>
@@ -652,13 +404,13 @@
                         <TextBlock Margin="0,8,0,0" Foreground="{StaticResource NightMutedTextBrush}" TextWrapping="Wrap"
                                    Text="El centro es el cénit y el borde, el horizonte. Norte arriba y este a la izquierda, como al mirar hacia arriba."/>
                         <TextBlock Margin="0,14,0,4" FontWeight="SemiBold" Text="Leyenda"/>
-                        <TextBlock Foreground="#55C7E8" Text="●  Visible (sobre la altitud mínima)"/>
-                        <TextBlock Foreground="#5D7392" Text="●  Bajo la altitud mínima"/>
-                        <TextBlock Foreground="#FFB45E" Text="●  En Mi plan"/>
+                        <TextBlock Foreground="{StaticResource AccentBrush}" Text="●  Visible (sobre la altitud mínima)"/>
+                        <TextBlock Foreground="{StaticResource PlaceholderTextBrush}" Text="●  Bajo la altitud mínima"/>
+                        <TextBlock Foreground="{StaticResource WarningBrush}" Text="●  En Mi plan"/>
                         <TextBlock Foreground="White" Text="◯  Objeto seleccionado"/>
-                        <TextBlock Foreground="#E8E3C8" Text="●  Luna"/>
-                        <TextBlock Foreground="#F5C26B" Text="◆  Planeta"/>
-                        <TextBlock Foreground="#FFB45E" Text="- - Altitud mínima"/>
+                        <TextBlock Foreground="{StaticResource MoonBrush}" Text="●  Luna"/>
+                        <TextBlock Foreground="{StaticResource PlanetBrush}" Text="◆  Planeta"/>
+                        <TextBlock Foreground="{StaticResource WarningBrush}" Text="- - Altitud mínima"/>
                         <TextBlock Margin="0,10,0,0" Foreground="{StaticResource NightMutedTextBrush}" TextWrapping="Wrap"
                                    Text="La carta respeta los filtros y la búsqueda del Planificador. Haz clic en un objeto para seleccionarlo."/>
                         <TextBlock Margin="0,14,0,0" FontWeight="SemiBold" Text="{Binding SelectedObject.Id, StringFormat=Seleccionado: {0}}"/>
@@ -715,7 +467,7 @@
                             </StackPanel>
                             <TextBlock Grid.Row="1" Grid.ColumnSpan="3" Margin="0,6,0,18"
                                        Foreground="{StaticResource NightMutedTextBrush}"
-                                       Text="{Binding Object.Type, StringFormat=Tipo: {0}}"/>
+                                       Text="{Binding Object.Type, Converter={StaticResource DisplayNameConverter}, StringFormat=Tipo: {0}}"/>
                             <StackPanel Grid.Row="2" Grid.Column="0">
                                 <TextBlock Foreground="{StaticResource NightMutedTextBrush}" Text="Información astronómica"/>
                                 <TextBlock Margin="0,6,0,0" Text="{Binding Object.Constellation, StringFormat=Constelación: {0}}"/>
@@ -735,7 +487,7 @@
                                 <TextBlock Text="{Binding Coordinates.AzimuthDegrees, StringFormat=Azimut: {0:0.0}°}"/>
                                 <TextBlock Text="{Binding VisibilityStatus, StringFormat=Estado: {0}}"/>
                                 <TextBlock Text="{Binding MoonSeparationDegrees, StringFormat=Distancia a la Luna: {0:0}°}"/>
-                                <TextBlock Margin="0,8,12,0" Foreground="#FFB45E" FontWeight="SemiBold" TextWrapping="Wrap"
+                                <TextBlock Margin="0,8,12,0" Foreground="{StaticResource WarningBrush}" FontWeight="SemiBold" TextWrapping="Wrap"
                                            Text="{Binding MoonWarning}"
                                            Visibility="{Binding HasMoonWarning, Converter={StaticResource BooleanToVisibilityConverter}}"/>
                             </StackPanel>
@@ -763,7 +515,7 @@
                 </Grid>
             </TabItem>
 
-            <TabItem Header="Mi plan" Style="{StaticResource DarkTabItemStyle}">
+            <TabItem x:Name="PlanTab" Header="Mi plan" Style="{StaticResource DarkTabItemStyle}">
                 <Grid Margin="12">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
@@ -774,16 +526,16 @@
                     <DockPanel Grid.Row="0" Margin="0,0,0,10" LastChildFill="True">
                         <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
                             <Button Style="{StaticResource SecondaryButtonStyle}" Content="Exportar CSV…" Margin="0,0,8,0"
-                                    ToolTip="Guarda el plan como CSV para abrirlo en Excel"
+                                    ToolTip="Guarda el plan como CSV para abrirlo en Excel (Ctrl+E)"
                                     Click="OnExportPlanClicked"/>
                             <Button Style="{StaticResource PrimaryButtonStyle}" Content="Imprimir…"
-                                    ToolTip="Imprime el plan (o guárdalo como PDF con Microsoft Print to PDF)"
+                                    ToolTip="Imprime el plan o guárdalo como PDF con Microsoft Print to PDF (Ctrl+P)"
                                     Click="OnPrintPlanClicked"/>
                         </StackPanel>
                         <StackPanel VerticalAlignment="Center">
                             <TextBlock Foreground="{StaticResource NightMutedTextBrush}" TextWrapping="Wrap"
                                        Text="Ordenado por hora de culminación: el orden en que conviene observar. Escribe tus notas en la columna Notas."/>
-                            <TextBlock Foreground="#8BE0B2" Text="{Binding PlanStatusMessage}" TextWrapping="Wrap"/>
+                            <TextBlock Foreground="{StaticResource SuccessSoftBrush}" Text="{Binding PlanStatusMessage}" TextWrapping="Wrap"/>
                         </StackPanel>
                     </DockPanel>
 
@@ -801,7 +553,7 @@
                             </Style>
                         </TextBlock.Style>
                     </TextBlock>
-                    <Border Grid.Row="1" Padding="8" Background="#0F1B2D"
+                    <Border Grid.Row="1" Padding="8" Background="{StaticResource SurfaceBrush}"
                             BorderBrush="{StaticResource NightBorderBrush}" BorderThickness="1" CornerRadius="6">
                         <Border.Style>
                             <Style TargetType="Border">
@@ -817,7 +569,7 @@
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Culminación" Binding="{Binding CulminationLocal, StringFormat=HH:mm}" Width="88"/>
                                 <DataGridTextColumn Header="ID" Binding="{Binding Row.Id}" Width="55"/>
-                                <DataGridTextColumn Header="Nombre" Binding="{Binding Row.CommonName}" Width="200"/>
+                                <DataGridTextColumn Header="Nombre" Binding="{Binding Row.CommonName}" Width="200" ElementStyle="{StaticResource TrimmedCellStyle}"/>
                                 <DataGridTextColumn Header="Constelación" Binding="{Binding Row.Constellation}" Width="100"/>
                                 <DataGridTextColumn Header="Mag." Binding="{Binding Row.ApparentMagnitude, StringFormat=F1}" Width="50" ElementStyle="{StaticResource NumericCellStyle}"/>
                                 <DataGridTextColumn Header="Alt. máx." Binding="{Binding MaximumAltitudeDegrees, StringFormat={}{0:0}°}" Width="66" ElementStyle="{StaticResource NumericCellStyle}"/>
@@ -829,16 +581,16 @@
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
                                             <TextBox Text="{Binding Note, UpdateSourceTrigger=LostFocus}"
-                                                     Background="#14233A" Foreground="White" CaretBrush="White"
-                                                     BorderBrush="#2B3F5E" BorderThickness="1" Padding="4,1"
+                                                     BorderBrush="{StaticResource GridLineBrush}" Padding="4,1"
+                                                     AutomationProperties.Name="Nota"
                                                      ToolTip="Nota para este objeto (se guarda al salir del campo)"/>
                                         </DataTemplate>
                                     </DataGridTemplateColumn.CellTemplate>
                                 </DataGridTemplateColumn>
-                                <DataGridTemplateColumn Width="90">
+                                <DataGridTemplateColumn Width="80">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
-                                            <Button Style="{StaticResource SecondaryButtonStyle}" Content="Quitar"
+                                            <Button Style="{StaticResource GridButtonStyle}" Content="Quitar"
                                                     Command="{Binding DataContext.RemoveFromObservationPlanCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                     CommandParameter="{Binding}"/>
                                         </DataTemplate>
@@ -859,21 +611,21 @@
 
                     <!-- Progreso del maratón Messier y exportación -->
                     <DockPanel Grid.Row="0" Margin="0,0,0,10" LastChildFill="True">
-                        <Button DockPanel.Dock="Right" Style="{StaticResource SecondaryButtonStyle}" Content="Exportar CSV…"
+                        <Button DockPanel.Dock="Right" VerticalAlignment="Top" Style="{StaticResource SecondaryButtonStyle}" Content="Exportar CSV…"
                                 ToolTip="Guarda la bitácora como CSV para abrirla en Excel"
                                 Click="OnExportLogbookClicked"/>
                         <StackPanel VerticalAlignment="Center">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock FontSize="16" FontWeight="SemiBold" Text="Maratón Messier"/>
-                                <TextBlock FontSize="16" Margin="10,0,0,0" Foreground="#8BE0B2" FontWeight="SemiBold"
+                                <TextBlock FontSize="16" Margin="10,0,0,0" Foreground="{StaticResource SuccessSoftBrush}" FontWeight="SemiBold"
                                            Text="{Binding MessierProgressText}"/>
                             </StackPanel>
                             <ProgressBar Width="360" Height="8" Margin="0,6,0,0" HorizontalAlignment="Left"
                                          Minimum="0" Maximum="100" Value="{Binding MessierProgressPercent, Mode=OneWay}"
-                                         Background="#14233A" Foreground="#62E6A7" BorderThickness="0"/>
+                                         AutomationProperties.Name="Progreso del maratón Messier"/>
                             <TextBlock Margin="0,6,0,0" Foreground="{StaticResource NightMutedTextBrush}" TextWrapping="Wrap"
                                        Text="Registra observaciones desde la pestaña Detalle del objeto. Los objetos observados aparecen con ✓ en el Planificador."/>
-                            <TextBlock Foreground="#8BE0B2" Text="{Binding StatusMessage}" TextWrapping="Wrap"/>
+                            <TextBlock Foreground="{StaticResource SuccessSoftBrush}" Text="{Binding StatusMessage}" TextWrapping="Wrap"/>
                         </StackPanel>
                     </DockPanel>
 
@@ -891,7 +643,7 @@
                             </Style>
                         </TextBlock.Style>
                     </TextBlock>
-                    <Border Grid.Row="1" Padding="8" Background="#0F1B2D"
+                    <Border Grid.Row="1" Padding="8" Background="{StaticResource SurfaceBrush}"
                             BorderBrush="{StaticResource NightBorderBrush}" BorderThickness="1" CornerRadius="6">
                         <Border.Style>
                             <Style TargetType="Border">
@@ -906,23 +658,23 @@
                             <DataGrid.Columns>
                                 <DataGridTextColumn Header="Fecha" Binding="{Binding ObservedAtLocal, StringFormat=dd/MM/yyyy HH:mm}" Width="120"/>
                                 <DataGridTextColumn Header="ID" Binding="{Binding ObjectId}" Width="66"/>
-                                <DataGridTextColumn Header="Nombre" Binding="{Binding ObjectName}" Width="190"/>
-                                <DataGridTextColumn Header="Lugar" Binding="{Binding Location}" Width="150"/>
-                                <DataGridTextColumn Header="Equipo" Binding="{Binding Equipment}" Width="150"/>
+                                <DataGridTextColumn Header="Nombre" Binding="{Binding ObjectName}" Width="190" ElementStyle="{StaticResource TrimmedCellStyle}"/>
+                                <DataGridTextColumn Header="Lugar" Binding="{Binding Location}" Width="150" ElementStyle="{StaticResource TrimmedCellStyle}"/>
+                                <DataGridTextColumn Header="Equipo" Binding="{Binding Equipment}" Width="150" ElementStyle="{StaticResource TrimmedCellStyle}"/>
                                 <DataGridTextColumn Header="Seeing" Binding="{Binding Seeing}" Width="60" ElementStyle="{StaticResource CenteredCellStyle}"/>
                                 <DataGridTextColumn Header="Transp." Binding="{Binding Transparency}" Width="64" ElementStyle="{StaticResource CenteredCellStyle}"/>
                                 <DataGridTextColumn Header="Valoración" Binding="{Binding RatingStars}" Width="86">
                                     <DataGridTextColumn.ElementStyle>
                                         <Style TargetType="TextBlock">
-                                            <Setter Property="Foreground" Value="#FFB45E"/>
+                                            <Setter Property="Foreground" Value="{StaticResource WarningBrush}"/>
                                         </Style>
                                     </DataGridTextColumn.ElementStyle>
                                 </DataGridTextColumn>
-                                <DataGridTextColumn Header="Notas" Binding="{Binding Notes}" Width="*"/>
-                                <DataGridTemplateColumn Width="96">
+                                <DataGridTextColumn Header="Notas" Binding="{Binding Notes}" Width="*" ElementStyle="{StaticResource TrimmedCellStyle}"/>
+                                <DataGridTemplateColumn Width="86">
                                     <DataGridTemplateColumn.CellTemplate>
                                         <DataTemplate>
-                                            <Button Style="{StaticResource SecondaryButtonStyle}" Content="Eliminar"
+                                            <Button Style="{StaticResource GridButtonStyle}" Content="Eliminar"
                                                     Command="{Binding DataContext.Logbook.DeleteCommand, RelativeSource={RelativeSource AncestorType=Window}}"
                                                     CommandParameter="{Binding}"/>
                                         </DataTemplate>

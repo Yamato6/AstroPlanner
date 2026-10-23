@@ -198,7 +198,7 @@ public partial class MainViewModel
     /// Busca una versión más reciente que <paramref name="current"/> si está
     /// activado en la configuración. Nunca lanza.
     /// </summary>
-    public async Task CheckForUpdatesAsync(Version current)
+    public async Task CheckForUpdatesAsync(AppVersion current)
     {
         if (!Settings.CheckForUpdates || _updateChecker is null)
         {

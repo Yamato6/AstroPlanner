@@ -1,4 +1,4 @@
-﻿using System.Net;
+using System.Net;
 using System.Text;
 using AstroPlanner.Core.Interfaces;
 using AstroPlanner.Core.Models;
@@ -68,7 +68,7 @@ public sealed class OnlineTests
     {
         public int Calls { get; private set; }
 
-        public Task<UpdateInfo?> CheckAsync(Version current, CancellationToken cancellationToken = default)
+        public Task<UpdateInfo?> CheckAsync(AppVersion current, CancellationToken cancellationToken = default)
         {
             Calls++;
             return Task.FromResult(result);
@@ -273,7 +273,7 @@ public sealed class OnlineTests
     {
         var checker = new GitHubUpdateChecker(new HttpClient(new StubHandler(_ => Json(ReleasesJson))), new NullLogger());
 
-        var update = await checker.CheckAsync(Version.Parse(current));
+        var update = await checker.CheckAsync(AppVersion.Parse(current));
 
         update?.Version.ToString().Should().Be(expected);
         if (expected is null) update.Should().BeNull();
@@ -288,8 +288,8 @@ public sealed class OnlineTests
         var offline = new GitHubUpdateChecker(
             new HttpClient(new StubHandler(_ => throw new HttpRequestException("sin red"))), new NullLogger());
 
-        (await notFound.CheckAsync(new Version(0, 8, 0))).Should().BeNull();
-        (await offline.CheckAsync(new Version(0, 8, 0))).Should().BeNull();
+        (await notFound.CheckAsync(AppVersion.Parse("0.8.0"))).Should().BeNull();
+        (await offline.CheckAsync(AppVersion.Parse("0.8.0"))).Should().BeNull();
     }
 
     [Theory]
@@ -307,11 +307,11 @@ public sealed class OnlineTests
     [Fact]
     public async Task UpdateBanner_ShowsWhenEnabledAndCanBeDismissed()
     {
-        var update = new UpdateInfo(new Version(0, 9, 0), "AstroPlanner 0.9", "https://github.com/Yamato6/AstroPlanner/releases/tag/v0.9.0");
+        var update = new UpdateInfo(AppVersion.Parse("0.9.0"), "AstroPlanner 0.9", "https://github.com/Yamato6/AstroPlanner/releases/tag/v0.9.0");
         var checker = new FixedUpdateChecker(update);
         var viewModel = CreateMain(new ManualTimeProvider(WinterNightUtc), null, checker);
 
-        await viewModel.CheckForUpdatesAsync(new Version(0, 8, 0));
+        await viewModel.CheckForUpdatesAsync(AppVersion.Parse("0.8.0"));
 
         viewModel.HasUpdate.Should().BeTrue();
         viewModel.UpdateBannerText.Should().Contain("AstroPlanner 0.9");
@@ -320,7 +320,7 @@ public sealed class OnlineTests
 
         var disabled = CreateMain(new ManualTimeProvider(WinterNightUtc), null, checker,
             settings: new ObserverSettings { CheckForUpdates = false });
-        await disabled.CheckForUpdatesAsync(new Version(0, 8, 0));
+        await disabled.CheckForUpdatesAsync(AppVersion.Parse("0.8.0"));
         disabled.HasUpdate.Should().BeFalse();
         checker.Calls.Should().Be(1, "con la opción desactivada no se consulta GitHub");
     }

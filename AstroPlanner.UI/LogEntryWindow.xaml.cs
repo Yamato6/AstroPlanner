@@ -1,4 +1,5 @@
 using System.Windows;
+using AstroPlanner.UI.Services;
 using AstroPlanner.UI.ViewModels;
 
 namespace AstroPlanner.UI;
@@ -8,6 +9,7 @@ public partial class LogEntryWindow : Window
     public LogEntryWindow(LogEntryDraftViewModel draft)
     {
         InitializeComponent();
+        NativeWindows.UseDarkTitleBar(this);
         DataContext = draft;
     }
 

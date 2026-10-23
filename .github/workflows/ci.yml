@@ -11,59 +11,94 @@ jobs:
   test:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # El TFM es net8.0, pero AstroPlanner.slnx necesita un SDK reciente.
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
             10.0.x
 
-      - name: Compilar
-        run: dotnet build AstroPlanner.slnx -c Release
+      - name: Compilar (los avisos cuentan como errores)
+        run: dotnet build AstroPlanner.slnx -c Release -warnaserror
 
       - name: Pruebas
         run: dotnet test AstroPlanner.slnx -c Release --no-build --logger "trx;LogFileName=results.trx"
 
       - name: Subir resultados de pruebas
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: test-results
           path: '**/TestResults/*.trx'
 
   release:
-    # Solo al publicar un tag de versión, p. ej. v0.4.0
+    # Solo al publicar un tag de versión, p. ej. v1.0.0 o v1.0.0-rc.1
     if: startsWith(github.ref, 'refs/tags/v')
     needs: test
     runs-on: windows-latest
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v6
         with:
           dotnet-version: |
             8.0.x
             10.0.x
 
-      - name: Publicar .exe autocontenido
-        run: >
-          dotnet publish AstroPlanner.UI -c Release -r win-x64 --self-contained true
-          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:DebugType=None
-          -o publish
-
-      - name: Empaquetar
+      - name: Versión a partir del tag
+        id: version
         shell: pwsh
         run: |
           $version = "${{ github.ref_name }}".TrimStart('v')
-          Compress-Archive -Path publish\AstroPlanner.UI.exe -DestinationPath "AstroPlanner_${version}_win-x64.zip"
+          "value=$version" >> $env:GITHUB_OUTPUT
 
-      - name: Crear release en GitHub
-        uses: softprops/action-gh-release@v2
+      # La versión del tag queda en el .exe (Acerca de, aviso de actualizaciones).
+      # Comprimido: ~76 MB en lugar de ~175 MB, a cambio de ~0,2 s más al abrir.
+      - name: Publicar .exe autocontenido
+        run: >
+          dotnet publish AstroPlanner.UI -c Release -r win-x64 --self-contained true
+          -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true -p:DebugType=None
+          -p:Version=${{ steps.version.outputs.value }}
+          -o publish
+
+      - name: Zip portátil
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          New-Item -ItemType Directory -Force portable | Out-Null
+          Copy-Item publish\AstroPlanner.exe portable\
+          Copy-Item LICENSE portable\LICENSE.txt
+          Copy-Item README.md portable\
+          Compress-Archive -Path portable\* -DestinationPath "dist\AstroPlanner_${{ steps.version.outputs.value }}_win-x64_portable.zip"
+
+      - name: Instalador (Inno Setup)
+        shell: pwsh
+        run: |
+          choco install innosetup --no-progress -y
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" `
+            "/DMyAppVersion=${{ steps.version.outputs.value }}" `
+            "/DPublishDir=$PWD\publish" `
+            "/DOutputDir=$PWD\dist" `
+            installer\AstroPlanner.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Sumas SHA-256
+        shell: pwsh
+        run: |
+          Get-ChildItem dist -File | ForEach-Object {
+            "$((Get-FileHash $_.FullName -Algorithm SHA256).Hash.ToLower())  $($_.Name)"
+          } | Set-Content dist\SHA256SUMS.txt -Encoding ascii
+          Get-Content dist\SHA256SUMS.txt
+
+      - name: Crear release en GitHub (borrador)
+        uses: softprops/action-gh-release@v3
         with:
-          files: AstroPlanner_*_win-x64.zip
+          files: dist/*
           draft: true
+          prerelease: ${{ contains(github.ref_name, '-') }}
           generate_release_notes: true

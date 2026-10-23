@@ -49,10 +49,7 @@ public sealed class JsonObservationLogService : IObservationLogService
 
     public JsonObservationLogService(string? filePath = null)
     {
-        _filePath = filePath ?? Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "AstroPlanner",
-            "logbook.json");
+        _filePath = filePath ?? AppPaths.DataFile("logbook.json");
     }
 
     public IReadOnlyList<ObservationLogEntry> Load()

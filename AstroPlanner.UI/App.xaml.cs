@@ -20,6 +20,7 @@ public partial class App : Application
 {
     private ServiceProvider? _serviceProvider;
     private IAppLogger? _logger;
+    private SingleInstance? _singleInstance;
 
     public App()
     {
@@ -50,7 +51,7 @@ public partial class App : Application
         services.AddSingleton(_ =>
         {
             var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-            http.DefaultRequestHeaders.UserAgent.ParseAdd($"AstroPlanner/{typeof(App).Assembly.GetName().Version}");
+            http.DefaultRequestHeaders.UserAgent.ParseAdd($"AstroPlanner/{AppVersion.Current}");
             return http;
         });
         services.AddSingleton<IWeatherForecastService>(sp =>
@@ -77,15 +78,33 @@ public partial class App : Application
 
         if (_serviceProvider is null) return;
 
+        // Si ya hay una ventana abierta, se pone delante y esta instancia termina.
+        _singleInstance = SingleInstance.TryCreate();
+        if (_singleInstance is { IsFirstInstance: false })
+        {
+            _singleInstance.ActivateFirstInstance();
+            Shutdown();
+            return;
+        }
+
         _logger = _serviceProvider.GetRequiredService<IAppLogger>();
-        _logger.Info($"AstroPlanner {typeof(App).Assembly.GetName().Version} iniciado.");
+        _logger.Info($"AstroPlanner {AppVersion.Current} iniciado.");
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += OnDomainUnhandledException;
         TaskScheduler.UnobservedTaskException += OnUnobservedTaskException;
 
+        if (_singleInstance is null)
+        {
+            _logger.Info("No se pudo comprobar si ya había otra instancia abierta; se continúa igualmente.");
+        }
+
         var mainWindow = _serviceProvider.GetRequiredService<MainWindow>();
         mainWindow.DataContext = _serviceProvider.GetRequiredService<MainViewModel>();
+        mainWindow.RememberPlacement(new WindowPlacementStore());
         mainWindow.Show();
+
+        _singleInstance?.ListenForActivation(() =>
+            Dispatcher.BeginInvoke(() => NativeWindows.BringToFront(mainWindow)));
     }
 
     /// <summary>
@@ -118,6 +137,7 @@ public partial class App : Application
     protected override void OnExit(ExitEventArgs e)
     {
         _serviceProvider?.Dispose();
+        _singleInstance?.Dispose();
         base.OnExit(e);
     }
 }

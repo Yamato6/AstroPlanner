@@ -25,7 +25,7 @@ public partial class MainViewModel : ObservableValidator, IDisposable
     private readonly TimeProvider _time;
     private SynchronizationContext? _uiContext;
     private readonly List<CelestialObjectRowViewModel> _allObjects = [];
-    private IReadOnlyList<string> _constellationFilters = [""];
+    private IReadOnlyList<FilterOption> _constellationFilters = [AllConstellations];
     private CelestialObjectObservation? _selectedObservation;
     private ITimer? _liveTimer;
     private bool _isApplyingLiveTime;
@@ -68,7 +68,7 @@ public partial class MainViewModel : ObservableValidator, IDisposable
         MaximumMagnitude = settings.MaximumMagnitude;
         TimeZoneId = settings.TimeZoneId;
         ObservationDateTime = NowInObserverZone;
-        TypeFilter = "All";
+        TypeFilter = DisplayNames.AllTypes;
         _isInitializing = false;
         RecalculateAndFilter();
 
@@ -106,21 +106,17 @@ public partial class MainViewModel : ObservableValidator, IDisposable
     /// <summary>Mi plan, ordenado por hora de culminación (orden de observación).</summary>
     public ObservableCollection<PlanItemViewModel> ObservationPlan { get; } = [];
 
-    public IReadOnlyList<string> TypeFilters { get; } =
+    private static readonly FilterOption AllConstellations = new("", "Todas");
+
+    /// <summary>Opciones del filtro de tipo: el valor es el nombre interno, el texto, en español.</summary>
+    public IReadOnlyList<FilterOption> TypeFilters { get; } =
     [
-        "All",
-        nameof(CelestialObjectType.Galaxy),
-        nameof(CelestialObjectType.OpenCluster),
-        nameof(CelestialObjectType.GlobularCluster),
-        nameof(CelestialObjectType.PlanetaryNebula),
-        nameof(CelestialObjectType.DiffuseNebula),
-        nameof(CelestialObjectType.SupernovaRemnant),
-        nameof(CelestialObjectType.Unknown),
-        nameof(CelestialObjectType.Planet)
+        new(DisplayNames.AllTypes, "Todos"),
+        .. Enum.GetValues<CelestialObjectType>().Select(type => new FilterOption(type.ToString(), DisplayNames.Of(type)))
     ];
 
-    /// <summary>Constelaciones presentes en el catálogo ("" = todas).</summary>
-    public IReadOnlyList<string> ConstellationFilters
+    /// <summary>Constelaciones presentes en el catálogo; la primera opción ("" = todas) quita el filtro.</summary>
+    public IReadOnlyList<FilterOption> ConstellationFilters
     {
         get => _constellationFilters;
         private set { _constellationFilters = value; OnPropertyChanged(); }
@@ -173,7 +169,7 @@ public partial class MainViewModel : ObservableValidator, IDisposable
     [ObservableProperty] private string? validationMessage;
     [ObservableProperty] private string timeZoneId = TimeZoneInfo.Local.Id;
     [ObservableProperty] private bool onlyVisible;
-    [ObservableProperty] private string typeFilter = "All";
+    [ObservableProperty] private string typeFilter = DisplayNames.AllTypes;
     [ObservableProperty] private string constellationFilter = "";
     [ObservableProperty] private CelestialObjectRowViewModel? selectedObject;
     [ObservableProperty] private bool isBusy;
@@ -596,7 +592,10 @@ public partial class MainViewModel : ObservableValidator, IDisposable
             _allObjects.AddRange(objects.Select(item => new CelestialObjectRowViewModel(item)));
 
             ConstellationFilters =
-                [.. _allObjects.Select(o => o.Constellation).Distinct().OrderBy(c => c)];
+            [
+                AllConstellations,
+                .. _allObjects.Select(o => o.Constellation).Distinct().OrderBy(c => c).Select(c => new FilterOption(c, c))
+            ];
 
             RestoreObservationPlan();
             RefreshObservedMarks();
@@ -614,7 +613,7 @@ public partial class MainViewModel : ObservableValidator, IDisposable
     private void ResetFilters()
     {
         OnlyVisible = false;
-        TypeFilter = "All";
+        TypeFilter = DisplayNames.AllTypes;
         ConstellationFilter = "";
         SearchText = "";
         // Vuelve a los valores de la configuración guardada, no a valores fijos.
@@ -875,7 +874,7 @@ public partial class MainViewModel : ObservableValidator, IDisposable
         var filtered = _allObjects
             .Where(item =>
                 (!OnlyVisible || item.IsVisible)
-                && (TypeFilter == "All" || item.Type.ToString() == TypeFilter)
+                && (TypeFilter == DisplayNames.AllTypes || item.Type.ToString() == TypeFilter)
                 && (string.IsNullOrWhiteSpace(ConstellationFilter)
                     || item.Constellation.Equals(ConstellationFilter, StringComparison.OrdinalIgnoreCase))
                 && item.ApparentMagnitude <= MaximumMagnitude

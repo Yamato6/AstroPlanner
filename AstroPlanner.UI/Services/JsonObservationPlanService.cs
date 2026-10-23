@@ -22,10 +22,7 @@ public sealed class JsonObservationPlanService : IObservationPlanService
 
     public JsonObservationPlanService(string? filePath = null)
     {
-        _filePath = filePath ?? Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "AstroPlanner",
-            "plan.json");
+        _filePath = filePath ?? AppPaths.DataFile("plan.json");
     }
 
     public IReadOnlyList<ObservationPlanEntry> Load()

@@ -6,33 +6,39 @@
         SizeToContent="Height"
         MinHeight="480"
         WindowStartupLocation="CenterOwner"
-        Background="#101A2B">
+        Background="{StaticResource DialogBackgroundBrush}">
     <Window.Resources>
+        <!-- Colores y plantillas: Themes/Dark.xaml -->
         <Style TargetType="TextBlock">
-            <Setter Property="Foreground" Value="#D7E3F4"/>
+            <Setter Property="Foreground" Value="{StaticResource NightTextBrush}"/>
         </Style>
         <Style TargetType="Label">
-            <Setter Property="Foreground" Value="#AFC2DD"/>
+            <Setter Property="Foreground" Value="{StaticResource LabelTextBrush}"/>
             <Setter Property="VerticalContentAlignment" Value="Center"/>
         </Style>
-        <Style TargetType="TextBox">
+        <Style TargetType="TextBox" BasedOn="{StaticResource DarkTextBoxStyle}">
             <Setter Property="Margin" Value="0,4,0,4"/>
-            <Setter Property="Padding" Value="7,4"/>
+            <Setter Property="Padding" Value="7,5"/>
         </Style>
-        <Style TargetType="ComboBox">
+        <Style TargetType="ComboBox" BasedOn="{StaticResource DarkComboBoxStyle}">
             <Setter Property="Margin" Value="0,4,0,4"/>
-            <Setter Property="Padding" Value="5,3"/>
+            <Setter Property="MaxDropDownHeight" Value="320"/>
         </Style>
-        <Style TargetType="Button">
-            <Setter Property="Padding" Value="14,7"/>
+        <Style TargetType="CheckBox" BasedOn="{StaticResource DarkCheckBoxStyle}">
+            <Setter Property="Foreground" Value="{StaticResource NightTextBrush}"/>
+            <Setter Property="FontWeight" Value="Normal"/>
+        </Style>
+        <!-- Con clave, no implícito (igual que en LogEntryWindow). -->
+        <Style x:Key="DialogButtonStyle" TargetType="Button" BasedOn="{StaticResource SecondaryButtonStyle}">
             <Setter Property="Margin" Value="0,0,8,0"/>
+            <Setter Property="MinWidth" Value="90"/>
         </Style>
     </Window.Resources>
 
     <ScrollViewer VerticalScrollBarVisibility="Auto">
         <StackPanel Margin="28">
             <TextBlock FontSize="24" FontWeight="SemiBold" Text="Configuración del observador"/>
-            <TextBlock Margin="0,4,0,22" Foreground="#8FA8C8"
+            <TextBlock Margin="0,4,0,22" Foreground="{StaticResource NightMutedTextBrush}"
                        Text="Elige una ciudad o introduce coordenadas personalizadas."/>
 
             <Grid>
@@ -90,20 +96,21 @@
                          Text="{Binding MaximumMagnitude, UpdateSourceTrigger=PropertyChanged}"/>
 
                 <Button Grid.Row="7" Grid.Column="1" HorizontalAlignment="Left" Margin="0,10,0,0"
+                        Style="{StaticResource SecondaryButtonStyle}"
                         Content="Usar coordenadas manuales"
                         Command="{Binding UseManualLocationCommand}"/>
             </Grid>
 
             <!-- Funciones que usan internet: se pueden desactivar -->
             <TextBlock Margin="0,22,0,6" FontSize="15" FontWeight="SemiBold" Text="Conexión a internet"/>
-            <CheckBox Foreground="#D7E3F4" Margin="0,4" IsChecked="{Binding WeatherForecastEnabled}"
+            <CheckBox Margin="0,4" IsChecked="{Binding WeatherForecastEnabled}"
                       Content="Pronóstico de nubes (Open-Meteo)"/>
-            <TextBlock Margin="22,0,0,6" Foreground="#8FA8C8" TextWrapping="Wrap" FontSize="12"
+            <TextBlock Margin="23,2,0,8" Foreground="{StaticResource NightMutedTextBrush}" TextWrapping="Wrap" FontSize="12"
                        Text="Envía tu ubicación aproximada (redondeada a ~1 km) a open-meteo.com para obtener la nubosidad por horas."/>
-            <CheckBox Foreground="#D7E3F4" Margin="0,4" IsChecked="{Binding CheckForUpdates}"
+            <CheckBox Margin="0,4" IsChecked="{Binding CheckForUpdates}"
                       Content="Buscar una versión nueva al iniciar (GitHub)"/>
 
-            <TextBlock Margin="0,16,0,0" TextWrapping="Wrap" Foreground="#FFB3A7">
+            <TextBlock Margin="0,16,0,0" TextWrapping="Wrap" Foreground="{StaticResource DangerSoftBrush}">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
                         <Setter Property="Visibility" Value="Collapsed"/>
@@ -117,7 +124,7 @@
                 <Run Text="{Binding StatusMessage}"/>
             </TextBlock>
 
-            <TextBlock Margin="0,16,0,0" TextWrapping="Wrap" Foreground="#8BE0B2">
+            <TextBlock Margin="0,16,0,0" TextWrapping="Wrap" Foreground="{StaticResource SuccessSoftBrush}">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">
                         <Setter Property="Visibility" Value="Visible"/>
@@ -132,8 +139,9 @@
             </TextBlock>
 
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,22,0,0">
-                <Button Content="Cancelar" Click="OnCancelClicked"/>
-                <Button Content="Guardar" IsDefault="True" Click="OnSaveClicked"/>
+                <Button Content="Cancelar" IsCancel="True" Click="OnCancelClicked" Style="{StaticResource DialogButtonStyle}"/>
+                <Button Content="Guardar" IsDefault="True" Click="OnSaveClicked"
+                        Style="{StaticResource PrimaryButtonStyle}" Margin="0" MinWidth="90"/>
             </StackPanel>
         </StackPanel>
     </ScrollViewer>

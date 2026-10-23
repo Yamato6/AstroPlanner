@@ -5,7 +5,7 @@ using System.Text.Json.Serialization;
 namespace AstroPlanner.UI.Services;
 
 /// <summary>Una versión publicada más reciente que la instalada.</summary>
-public sealed record UpdateInfo(Version Version, string Name, string Url);
+public sealed record UpdateInfo(AppVersion Version, string Name, string Url);
 
 /// <summary>Comprueba si hay una versión nueva publicada.</summary>
 public interface IUpdateChecker
@@ -14,19 +14,19 @@ public interface IUpdateChecker
     /// La versión publicada más alta si es mayor que <paramref name="current"/>;
     /// null si no hay ninguna o si no se pudo consultar (nunca lanza por red).
     /// </summary>
-    Task<UpdateInfo?> CheckAsync(Version current, CancellationToken cancellationToken = default);
+    Task<UpdateInfo?> CheckAsync(AppVersion current, CancellationToken cancellationToken = default);
 }
 
 /// <summary>
-/// Consulta las releases de GitHub (incluidas las pre-release; se ignoran los
-/// borradores). Solo funciona si el repositorio es público: con uno privado la
-/// API responde 404 y simplemente no se avisa de nada.
+/// Consulta las releases de GitHub (se ignoran los borradores). Solo funciona si
+/// el repositorio es público: con uno privado la API responde 404 y simplemente
+/// no se avisa de nada.
 /// </summary>
 public sealed class GitHubUpdateChecker(HttpClient http, IAppLogger logger) : IUpdateChecker
 {
     public const string ReleasesUrl = "https://api.github.com/repos/Yamato6/AstroPlanner/releases?per_page=20";
 
-    public async Task<UpdateInfo?> CheckAsync(Version current, CancellationToken cancellationToken = default)
+    public async Task<UpdateInfo?> CheckAsync(AppVersion current, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -50,21 +50,27 @@ public sealed class GitHubUpdateChecker(HttpClient http, IAppLogger logger) : IU
         }
     }
 
-    internal static UpdateInfo? Newest(IEnumerable<GitHubRelease> releases, Version current) =>
-        releases
+    /// <summary>
+    /// La release más alta que supera a <paramref name="current"/>. Las pre-release
+    /// (sufijo como "-rc.1" o marcadas así en GitHub) solo se ofrecen a quien usa
+    /// una 0.x o una pre-release: quien tiene una versión estable solo ve estables.
+    /// </summary>
+    internal static UpdateInfo? Newest(IEnumerable<GitHubRelease> releases, AppVersion current)
+    {
+        var acceptsPreReleases = current.IsPreRelease || current.Number.Major == 0;
+        return releases
             .Where(r => !r.Draft && !string.IsNullOrWhiteSpace(r.HtmlUrl))
             .Select(r => (Release: r, Version: ParseTag(r.TagName)))
-            .Where(r => r.Version is not null && r.Version > Normalize(current))
+            .Where(r => r.Version is not null
+                        && r.Version > current
+                        && (acceptsPreReleases || !(r.Version.IsPreRelease || r.Release.PreRelease)))
             .OrderByDescending(r => r.Version)
             .Select(r => new UpdateInfo(r.Version!, string.IsNullOrWhiteSpace(r.Release.Name) ? r.Release.TagName! : r.Release.Name!, r.Release.HtmlUrl!))
             .FirstOrDefault();
+    }
 
-    /// <summary>"v0.8.0" → 0.8.0; null si la etiqueta no es una versión (p. ej. "PreRelease").</summary>
-    internal static Version? ParseTag(string? tag) =>
-        tag is not null && Version.TryParse(tag.Trim().TrimStart('v', 'V'), out var version) ? Normalize(version) : null;
-
-    /// <summary>Compara siempre con 3 componentes: 0.8 == 0.8.0 == 0.8.0.0.</summary>
-    private static Version Normalize(Version v) => new(v.Major, v.Minor, Math.Max(v.Build, 0));
+    /// <summary>"v0.8.0" → 0.8.0, "v1.0.0-rc.1" → 1.0.0-rc.1; null si la etiqueta no es una versión (p. ej. "PreRelease").</summary>
+    internal static AppVersion? ParseTag(string? tag) => AppVersion.TryParse(tag);
 
     internal sealed class GitHubRelease
     {
@@ -72,5 +78,6 @@ public sealed class GitHubUpdateChecker(HttpClient http, IAppLogger logger) : IU
         [JsonPropertyName("name")] public string? Name { get; set; }
         [JsonPropertyName("html_url")] public string? HtmlUrl { get; set; }
         [JsonPropertyName("draft")] public bool Draft { get; set; }
+        [JsonPropertyName("prerelease")] public bool PreRelease { get; set; }
     }
 }

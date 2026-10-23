@@ -1,8 +1,11 @@
-﻿using System.Windows;
+using System.Windows;
 using System.ComponentModel;
+using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Input;
+using System.Windows.Media;
 using System.Windows.Navigation;
+using System.Windows.Threading;
 using AstroPlanner.UI.Services;
 using AstroPlanner.UI.ViewModels;
 
@@ -19,6 +22,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        NativeWindows.UseDarkTitleBar(this);
         AltitudePlot.UserInputProcessor.IsEnabled = false;
         SkyPlot.UserInputProcessor.IsEnabled = false;
         SkyPlot.SizeChanged += (_, _) =>
@@ -52,15 +56,101 @@ public partial class MainWindow : Window
         await _viewModel.LoadCommand.ExecuteAsync(null);
         UpdateChart(_viewModel);
         UpdateSkyMap(_viewModel);
-        await _viewModel.CheckForUpdatesAsync(typeof(App).Assembly.GetName().Version ?? new Version(0, 0));
+        await _viewModel.CheckForUpdatesAsync(AppVersion.Current);
     }
 
-    /// <summary>Abre la página de la versión nueva en el navegador (solo enlaces de GitHub).</summary>
-    private void OnUpdateLinkClicked(object sender, RequestNavigateEventArgs e)
+    /// <summary>
+    /// Recupera el tamaño y la posición de la sesión anterior (ajustados al
+    /// escritorio actual) y los guarda al cerrar. Se llama antes de Show().
+    /// </summary>
+    public void RememberPlacement(WindowPlacementStore store)
     {
-        if (e.Uri is { Scheme: "https", Host: "github.com" })
+        if (store.Load() is { } saved)
         {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true });
+            var virtualScreen = new Rect(SystemParameters.VirtualScreenLeft, SystemParameters.VirtualScreenTop,
+                SystemParameters.VirtualScreenWidth, SystemParameters.VirtualScreenHeight);
+            var placement = saved.FitTo(virtualScreen, SystemParameters.WorkArea, MinWidth, MinHeight);
+            WindowStartupLocation = WindowStartupLocation.Manual;
+            Left = placement.Left;
+            Top = placement.Top;
+            Width = placement.Width;
+            Height = placement.Height;
+            if (placement.IsMaximized)
+            {
+                WindowState = WindowState.Maximized;
+            }
+        }
+
+        // Maximizada y luego minimizada debe volver maximizada la próxima vez.
+        var wasMaximized = WindowState == WindowState.Maximized;
+        StateChanged += (_, _) =>
+        {
+            if (WindowState != WindowState.Minimized)
+            {
+                wasMaximized = WindowState == WindowState.Maximized;
+            }
+        };
+
+        Closing += (_, _) =>
+        {
+            // RestoreBounds: el tamaño "normal" aunque esté maximizada o minimizada.
+            var bounds = WindowState == WindowState.Normal ? new Rect(Left, Top, Width, Height) : RestoreBounds;
+            if (!bounds.IsEmpty)
+            {
+                store.Save(new WindowPlacement(bounds.Left, bounds.Top, bounds.Width, bounds.Height, wasMaximized));
+            }
+        };
+    }
+
+    /// <summary>Abre en el navegador los enlaces de la interfaz (solo sitios permitidos, ver <see cref="SafeLinks"/>).</summary>
+    private void OnLinkClicked(object sender, RequestNavigateEventArgs e)
+    {
+        SafeLinks.Open(e.Uri);
+        e.Handled = true;
+    }
+
+    private void OnAboutClicked(object sender, RoutedEventArgs e) => ShowAbout();
+
+    private void ShowAbout() => new AboutWindow { Owner = this }.ShowDialog();
+
+    /// <summary>
+    /// Atajos de teclado: Ctrl+F buscar, F5 ahora, Ctrl+, configuración,
+    /// Ctrl+P imprimir el plan, Ctrl+E exportar el plan, F1 acerca de.
+    /// </summary>
+    private void OnPreviewKeyDown(object sender, KeyEventArgs e)
+    {
+        var ctrl = Keyboard.Modifiers == ModifierKeys.Control;
+        var none = Keyboard.Modifiers == ModifierKeys.None;
+        switch (e.Key)
+        {
+            case Key.F when ctrl:
+                Tabs.SelectedItem = PlannerTab;
+                // Tras cambiar de pestaña, la caja aún no está en pantalla: se enfoca cuando ya lo esté.
+                Dispatcher.BeginInvoke(() =>
+                {
+                    SearchBox.Focus();
+                    SearchBox.SelectAll();
+                }, DispatcherPriority.Input);
+                break;
+            case Key.F5 when none:
+                _viewModel?.SetNowCommand.Execute(null);
+                break;
+            case Key.OemComma when ctrl:
+                OnSettingsClicked(sender, e);
+                break;
+            case Key.P when ctrl:
+                Tabs.SelectedItem = PlanTab;   // con el plan vacío, al menos se ve por qué no hay nada que imprimir
+                OnPrintPlanClicked(sender, e);
+                break;
+            case Key.E when ctrl:
+                Tabs.SelectedItem = PlanTab;
+                OnExportPlanClicked(sender, e);
+                break;
+            case Key.F1 when none:
+                ShowAbout();
+                break;
+            default:
+                return;
         }
 
         e.Handled = true;
@@ -110,8 +200,16 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// Las notas del plan se guardan al salir del campo; con un atajo de teclado
+    /// el foco no sale, así que se confirma a mano antes de exportar o imprimir.
+    /// </summary>
+    private static void CommitFocusedTextBox() =>
+        (Keyboard.FocusedElement as TextBox)?.GetBindingExpression(TextBox.TextProperty)?.UpdateSource();
+
     private void OnExportPlanClicked(object sender, RoutedEventArgs e)
     {
+        CommitFocusedTextBox();
         if (_viewModel is null || _viewModel.ObservationPlan.Count == 0) return;
 
         var dialog = new Microsoft.Win32.SaveFileDialog
@@ -157,9 +255,10 @@ public partial class MainWindow : Window
 
     private void OnPrintPlanClicked(object sender, RoutedEventArgs e)
     {
+        CommitFocusedTextBox();
         if (_viewModel is null || _viewModel.ObservationPlan.Count == 0) return;
 
-        var dialog = new System.Windows.Controls.PrintDialog();
+        var dialog = new PrintDialog();
         if (dialog.ShowDialog() != true) return;
 
         var document = PlanPrintDocument.Create(_viewModel.ObservationPlan.ToList(), _viewModel.PlanSummaryText);
@@ -180,6 +279,12 @@ public partial class MainWindow : Window
         _viewModel.SelectNearestOnSkyMap(coordinates.X, coordinates.Y);
     }
 
+    /// <summary>Color del tema (Themes/Dark.xaml) para ScottPlot: los gráficos comparten la paleta de la interfaz.</summary>
+    private ScottPlot.Color Theme(string key) =>
+        TryFindResource(key) is SolidColorBrush { Color: var c }
+            ? new ScottPlot.Color(c.R, c.G, c.B, c.A)
+            : ScottPlot.Colors.Magenta;   // clave mal escrita: se nota a la vista
+
     /// <summary>
     /// Carta polar del cielo: círculos de altitud cada 30°, puntos cardinales,
     /// objetos sobre el horizonte (tamaño según magnitud), Mi plan, selección y Luna.
@@ -188,16 +293,16 @@ public partial class MainWindow : Window
     {
         var plot = SkyPlot.Plot;
         plot.Clear();
-        plot.FigureBackground.Color = ScottPlot.Color.FromHex("#0F1B2D");
-        plot.DataBackground.Color = ScottPlot.Color.FromHex("#0F1B2D");
+        plot.FigureBackground.Color = Theme("SurfaceBrush");
+        plot.DataBackground.Color = Theme("SurfaceBrush");
         plot.Axes.Frameless();
         plot.HideGrid();
 
-        var gridColor = ScottPlot.Color.FromHex("#2A425F");
+        var gridColor = Theme("NightBorderBrush");
         var horizon = plot.Add.Circle(0, 0, SkyProjection.HorizonRadius);
-        horizon.LineColor = ScottPlot.Color.FromHex("#4A6A90");
+        horizon.LineColor = Theme("SkyHorizonBrush");
         horizon.LineWidth = 2;
-        horizon.FillColor = ScottPlot.Color.FromHex("#101E33");
+        horizon.FillColor = Theme("SkyFillBrush");
 
         foreach (var altitude in new[] { 30.0, 60.0 })
         {
@@ -208,7 +313,7 @@ public partial class MainWindow : Window
 
         // Altitud mínima: por encima de este círculo el objeto cuenta como visible.
         var threshold = plot.Add.Circle(0, 0, SkyProjection.HorizonRadius - viewModel.MinimumAltitude);
-        threshold.LineColor = ScottPlot.Color.FromHex("#FFB45E").WithAlpha(0.6);
+        threshold.LineColor = Theme("WarningBrush").WithAlpha(0.6);
         threshold.LineWidth = 1;
         threshold.LinePattern = ScottPlot.LinePattern.Dashed;
 
@@ -225,7 +330,7 @@ public partial class MainWindow : Window
         {
             var (x, y) = SkyProjection.ToXY(-8, azimuth);
             var text = plot.Add.Text(label, x, y);
-            text.LabelFontColor = ScottPlot.Color.FromHex("#C9D7ED");
+            text.LabelFontColor = Theme("LabelTextBrush");
             text.LabelFontSize = 16;
             text.LabelBold = true;
             text.LabelAlignment = ScottPlot.Alignment.MiddleCenter;
@@ -235,9 +340,9 @@ public partial class MainWindow : Window
         if (viewModel.Moon is { IsAboveHorizon: true } moon)
         {
             var (x, y) = SkyProjection.ToXY(moon.Horizontal.AltitudeDegrees, moon.Horizontal.AzimuthDegrees);
-            plot.Add.Marker(x, y, ScottPlot.MarkerShape.FilledCircle, 22, ScottPlot.Color.FromHex("#E8E3C8").WithAlpha(0.85));
+            plot.Add.Marker(x, y, ScottPlot.MarkerShape.FilledCircle, 22, Theme("MoonBrush").WithAlpha(0.85));
             var label = plot.Add.Text($"Luna {viewModel.MoonIlluminationText}", x, y - 6);
-            label.LabelFontColor = ScottPlot.Color.FromHex("#E8E3C8");
+            label.LabelFontColor = Theme("MoonBrush");
             label.LabelFontSize = 12;
             label.LabelAlignment = ScottPlot.Alignment.UpperCenter;
         }
@@ -251,13 +356,13 @@ public partial class MainWindow : Window
                 // Planetas: rombo dorado (naranja si están en Mi plan), con su nombre.
                 size = 13;
                 plot.Add.Marker(x, y, ScottPlot.MarkerShape.FilledDiamond, size,
-                    ScottPlot.Color.FromHex(point.IsInPlan ? "#FFB45E" : "#F5C26B"));
+                    Theme(point.IsInPlan ? "WarningBrush" : "PlanetBrush"));
             }
             else
             {
-                var color = point.IsInPlan ? "#FFB45E" : point.IsVisible ? "#55C7E8" : "#5D7392";
+                var color = point.IsInPlan ? "WarningBrush" : point.IsVisible ? "AccentBrush" : "PlaceholderTextBrush";
                 size = (float)Math.Clamp(13 - point.Magnitude, 4, 10);
-                plot.Add.Marker(x, y, ScottPlot.MarkerShape.FilledCircle, size, ScottPlot.Color.FromHex(color));
+                plot.Add.Marker(x, y, ScottPlot.MarkerShape.FilledCircle, size, Theme(color));
             }
 
             if (point.IsSelected)
@@ -267,7 +372,7 @@ public partial class MainWindow : Window
 
             var label = plot.Add.Text(point.Id, x + 2.5, y);
             var highlighted = point.IsInPlan || point.IsSelected || point.IsPlanet;
-            label.LabelFontColor = ScottPlot.Color.FromHex(point.IsPlanet ? "#F5C26B" : highlighted ? "#EAF2FF" : "#7F93B0");
+            label.LabelFontColor = Theme(point.IsPlanet ? "PlanetBrush" : highlighted ? "StrongTextBrush" : "SkyLabelBrush");
             label.LabelFontSize = highlighted ? 12 : 10;
             label.LabelAlignment = ScottPlot.Alignment.MiddleLeft;
         }
@@ -296,11 +401,11 @@ public partial class MainWindow : Window
         }
 
         AltitudePlot.Plot.Clear();
-        AltitudePlot.Plot.FigureBackground.Color = ScottPlot.Color.FromHex("#172033");
-        AltitudePlot.Plot.DataBackground.Color = ScottPlot.Color.FromHex("#0F1B2D");
-        AltitudePlot.Plot.Axes.Color(ScottPlot.Color.FromHex("#8FA8C8"));
-        AltitudePlot.Plot.Grid.MajorLineColor = ScottPlot.Color.FromHex("#2A425F");
-        AltitudePlot.Plot.Grid.MinorLineColor = ScottPlot.Color.FromHex("#1B2D4A");
+        AltitudePlot.Plot.FigureBackground.Color = Theme("NightPanelBrush");
+        AltitudePlot.Plot.DataBackground.Color = Theme("SurfaceBrush");
+        AltitudePlot.Plot.Axes.Color(Theme("NightMutedTextBrush"));
+        AltitudePlot.Plot.Grid.MajorLineColor = Theme("NightBorderBrush");
+        AltitudePlot.Plot.Grid.MinorLineColor = Theme("ControlRaisedBrush");
 
         if (points.Count > 0)
         {
@@ -320,7 +425,7 @@ public partial class MainWindow : Window
                     moonPoints.Select(p => p.LocalTime.ToOADate()).ToArray(),
                     moonPoints.Select(p => p.AltitudeDegrees).ToArray());
                 moonLine.LegendText = $"Luna ({viewModel.MoonIlluminationText})";
-                moonLine.Color = ScottPlot.Color.FromHex("#E8E3C8").WithAlpha(0.8);
+                moonLine.Color = Theme("MoonBrush").WithAlpha(0.8);
                 moonLine.LineWidth = 1.5f;
                 moonLine.LinePattern = ScottPlot.LinePattern.Dashed;
                 moonLine.MarkerSize = 0;
@@ -330,7 +435,7 @@ public partial class MainWindow : Window
             if (selectedTime >= x[0] && selectedTime <= x[^1])
             {
                 var nowLine = AltitudePlot.Plot.Add.VerticalLine(selectedTime);
-                nowLine.LineColor = ScottPlot.Color.FromHex("#8FA8C8");
+                nowLine.LineColor = Theme("NightMutedTextBrush");
                 nowLine.LineWidth = 1;
                 nowLine.LinePattern = ScottPlot.LinePattern.Dotted;
                 nowLine.LegendText = "Hora elegida";
@@ -338,10 +443,10 @@ public partial class MainWindow : Window
 
             var altitudeLine = AltitudePlot.Plot.Add.Scatter(x, y);
             altitudeLine.LegendText = "Altitud";
-            altitudeLine.Color = ScottPlot.Color.FromHex("#55C7E8");
+            altitudeLine.Color = Theme("AccentBrush");
             altitudeLine.LineWidth = 2;
             var thresholdLine = AltitudePlot.Plot.Add.HorizontalLine(viewModel.MinimumAltitude);
-            thresholdLine.LineColor = ScottPlot.Color.FromHex("#FFB45E");
+            thresholdLine.LineColor = Theme("WarningBrush");
             thresholdLine.LineWidth = 2;
             thresholdLine.LegendText = "Altitud mínima";
 
@@ -350,6 +455,10 @@ public partial class MainWindow : Window
             AltitudePlot.Plot.Axes.Bottom.Label.Text = "Hora local";
             AltitudePlot.Plot.Axes.Left.Label.Text = "Altitud (°)";
             AltitudePlot.Plot.ShowLegend();
+            // Leyenda oscura: con el fondo blanco por defecto la línea de la Luna no se ve.
+            AltitudePlot.Plot.Legend.BackgroundColor = Theme("NightPanelBrush").WithAlpha(0.92);
+            AltitudePlot.Plot.Legend.FontColor = Theme("NightTextBrush");
+            AltitudePlot.Plot.Legend.OutlineColor = Theme("ControlBorderBrush");
             var timeTicks = new ScottPlot.TickGenerators.DateTimeFixedInterval(
                 new ScottPlot.TickGenerators.TimeUnits.Hour(),
                 2,
@@ -380,7 +489,7 @@ public partial class MainWindow : Window
             }
 
             var span = AltitudePlot.Plot.Add.HorizontalSpan(start.ToOADate(), end.ToOADate());
-            span.FillStyle.Color = ScottPlot.Color.FromHex("#A9B4C2").WithAlpha(cloud / 100.0 * 0.45);
+            span.FillStyle.Color = Theme("ChartCloudBrush").WithAlpha(cloud / 100.0 * 0.45);
             span.LineStyle.Width = 0;
             if (first)
             {
@@ -414,7 +523,7 @@ public partial class MainWindow : Window
         foreach (var (from, to) in bands)
         {
             var span = AltitudePlot.Plot.Add.HorizontalSpan(from.ToOADate(), to.ToOADate());
-            span.FillStyle.Color = ScottPlot.Color.FromHex("#3A4F7A").WithAlpha(0.35);
+            span.FillStyle.Color = Theme("ChartTwilightBrush").WithAlpha(0.35);
             span.LineStyle.Width = 0;
             if (first)
             {

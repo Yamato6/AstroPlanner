@@ -23,7 +23,7 @@ public static class PlanExport
                 row.Id,
                 row.CommonName,
                 row.Constellation,
-                row.Type.ToString(),
+                DisplayNames.Of(row.Type),
                 row.ApparentMagnitude.ToString("0.0", culture),
                 item.CulminationLocal?.ToString("HH:mm", culture) ?? "",
                 item.MaximumAltitudeDegrees.ToString("0", culture),

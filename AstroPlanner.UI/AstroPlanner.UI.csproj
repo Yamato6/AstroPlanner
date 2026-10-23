@@ -17,8 +17,30 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <Version>0.8.0</Version>
+    <!-- NU1701: SkiaSharp.Views.WPF (dependencia de ScottPlot.WPF) solo declara
+         .NET Framework, pero funciona en .NET 8; es un aviso conocido de ScottPlot. -->
+    <NoWarn>$(NoWarn);NU1701</NoWarn>
+
+    <!-- El ejecutable se llama AstroPlanner.exe; el espacio de nombres no cambia. -->
+    <AssemblyName>AstroPlanner</AssemblyName>
+    <RootNamespace>AstroPlanner.UI</RootNamespace>
+    <ApplicationIcon>Assets\AstroPlanner.ico</ApplicationIcon>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+
+    <!-- El CI sustituye la versión por la del tag (p. ej. 1.0.0-rc.1). -->
+    <Version>1.0.0</Version>
+    <Product>AstroPlanner</Product>
+    <AssemblyTitle>AstroPlanner</AssemblyTitle>
+    <Description>Planificador de observaciones astronómicas: catálogo Messier, planetas, Luna y pronóstico de nubes.</Description>
+    <Authors>Yamato6</Authors>
+    <Company>Yamato6</Company>
+    <Copyright>© 2026 Yamato6. Licencia MIT.</Copyright>
+    <NeutralLanguage>es</NeutralLanguage>
   </PropertyGroup>
+
+  <ItemGroup>
+    <Resource Include="Assets\AstroPlanner.png" />
+  </ItemGroup>
 
   <ItemGroup>
     <InternalsVisibleTo Include="AstroPlanner.Tests" />

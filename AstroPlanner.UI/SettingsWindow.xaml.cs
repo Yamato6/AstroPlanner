@@ -1,4 +1,5 @@
 using System.Windows;
+using AstroPlanner.UI.Services;
 using AstroPlanner.UI.ViewModels;
 
 namespace AstroPlanner.UI;
@@ -8,6 +9,7 @@ public partial class SettingsWindow : Window
     public SettingsWindow(SettingsViewModel settings)
     {
         InitializeComponent();
+        NativeWindows.UseDarkTitleBar(this);
         DataContext = settings;
     }
 

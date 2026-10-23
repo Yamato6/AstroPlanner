@@ -1,0 +1,104 @@
+<Window x:Class="AstroPlanner.UI.AboutWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Acerca de AstroPlanner"
+        Width="560"
+        SizeToContent="Height"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        Background="{StaticResource DialogBackgroundBrush}">
+    <Window.Resources>
+        <Style TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource NightTextBrush}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+        </Style>
+        <Style x:Key="SectionStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource NightMutedTextBrush}"/>
+            <Setter Property="FontWeight" Value="SemiBold"/>
+            <Setter Property="Margin" Value="0,18,0,6"/>
+        </Style>
+        <Style x:Key="CreditStyle" TargetType="TextBlock">
+            <Setter Property="Foreground" Value="{StaticResource NightTextBrush}"/>
+            <Setter Property="TextWrapping" Value="Wrap"/>
+            <Setter Property="Margin" Value="0,0,0,5"/>
+        </Style>
+    </Window.Resources>
+
+    <StackPanel Margin="28">
+        <StackPanel Orientation="Horizontal">
+            <Image Source="pack://application:,,,/AstroPlanner;component/Assets/AstroPlanner.png" Width="56" Height="56" Margin="0,0,16,0"
+                   RenderOptions.BitmapScalingMode="HighQuality"/>
+            <StackPanel VerticalAlignment="Center">
+                <TextBlock FontSize="24" FontWeight="SemiBold" Foreground="White" Text="AstroPlanner"/>
+                <TextBlock Foreground="{StaticResource NightMutedTextBrush}">
+                    <Run Text="Versión"/> <Run x:Name="VersionRun"/>
+                </TextBlock>
+            </StackPanel>
+        </StackPanel>
+
+        <TextBlock Margin="0,16,0,0"
+                   Text="Planificador de observaciones astronómicas: qué objetos Messier y planetas se ven esta noche desde tu ubicación, cuándo culminan, cómo estorba la Luna y cuántas nubes hay previstas."/>
+
+        <TextBlock Style="{StaticResource SectionStyle}" Text="Créditos"/>
+        <TextBlock Style="{StaticResource CreditStyle}">
+            <Run FontWeight="SemiBold" Text="Pronóstico de nubes:"/>
+            <Hyperlink NavigateUri="https://open-meteo.com/" RequestNavigate="OnLinkClicked">Open-Meteo.com</Hyperlink>
+            <Run Text="(datos bajo licencia CC BY 4.0)"/>
+        </TextBlock>
+        <TextBlock Style="{StaticResource CreditStyle}">
+            <Run FontWeight="SemiBold" Text="Algoritmos astronómicos:"/>
+            <Run Text="Jean Meeus, «Astronomical Algorithms» (2.ª ed.), y elementos orbitales aproximados del JPL (NASA)."/>
+        </TextBlock>
+        <TextBlock Style="{StaticResource CreditStyle}">
+            <Run FontWeight="SemiBold" Text="Bibliotecas:"/>
+            <Run Text=".NET y WPF, ScottPlot, CommunityToolkit.Mvvm y Microsoft.Extensions.DependencyInjection."/>
+        </TextBlock>
+
+        <TextBlock Style="{StaticResource SectionStyle}" Text="Tus datos"/>
+        <TextBlock Text="La configuración, el plan, la bitácora y los registros se guardan solo en este equipo. Desinstalar AstroPlanner no los borra."/>
+        <DockPanel Margin="0,8,0,0">
+            <Button DockPanel.Dock="Right" Style="{StaticResource SecondaryButtonStyle}" Content="Abrir carpeta"
+                    Click="OnOpenDataFolderClicked"/>
+            <TextBlock x:Name="DataFolderText" VerticalAlignment="Center" FontFamily="Consolas" FontSize="12"
+                       Foreground="{StaticResource NightMutedTextBrush}" TextTrimming="CharacterEllipsis" TextWrapping="NoWrap"/>
+        </DockPanel>
+
+        <TextBlock Style="{StaticResource SectionStyle}" Text="Licencia"/>
+        <TextBlock>
+            <Run Text="© 2026 Yamato6. Software libre bajo licencia MIT."/>
+            <LineBreak/>
+            <Hyperlink NavigateUri="https://github.com/Yamato6/AstroPlanner" RequestNavigate="OnLinkClicked">github.com/Yamato6/AstroPlanner</Hyperlink>
+        </TextBlock>
+
+        <TextBlock Style="{StaticResource SectionStyle}" Text="Atajos de teclado"/>
+        <Grid>
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+            <Grid.RowDefinitions>
+                <RowDefinition/>
+                <RowDefinition/>
+                <RowDefinition/>
+            </Grid.RowDefinitions>
+            <TextBlock Grid.Row="0" Grid.Column="0" Margin="0,0,10,3" FontWeight="SemiBold" Text="Ctrl+F"/>
+            <TextBlock Grid.Row="0" Grid.Column="1" Text="Buscar"/>
+            <TextBlock Grid.Row="1" Grid.Column="0" Margin="0,0,10,3" FontWeight="SemiBold" Text="F5"/>
+            <TextBlock Grid.Row="1" Grid.Column="1" Text="Hora actual"/>
+            <TextBlock Grid.Row="2" Grid.Column="0" Margin="0,0,10,3" FontWeight="SemiBold" Text="Ctrl+,"/>
+            <TextBlock Grid.Row="2" Grid.Column="1" Text="Configuración"/>
+            <TextBlock Grid.Row="0" Grid.Column="2" Margin="0,0,10,3" FontWeight="SemiBold" Text="Ctrl+P"/>
+            <TextBlock Grid.Row="0" Grid.Column="3" Text="Imprimir el plan"/>
+            <TextBlock Grid.Row="1" Grid.Column="2" Margin="0,0,10,3" FontWeight="SemiBold" Text="Ctrl+E"/>
+            <TextBlock Grid.Row="1" Grid.Column="3" Text="Exportar el plan a CSV"/>
+            <TextBlock Grid.Row="2" Grid.Column="2" Margin="0,0,10,3" FontWeight="SemiBold" Text="F1"/>
+            <TextBlock Grid.Row="2" Grid.Column="3" Text="Esta ventana"/>
+        </Grid>
+
+        <Button Style="{StaticResource PrimaryButtonStyle}" Content="Cerrar" HorizontalAlignment="Right"
+                Margin="0,22,0,0" MinWidth="90" IsDefault="True" IsCancel="True"/>
+    </StackPanel>
+</Window>

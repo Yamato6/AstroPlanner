@@ -207,7 +207,8 @@ public sealed partial class LogEntryDraftViewModel : ObservableValidator
 
     public string ObjectId { get; }
     public string ObjectName { get; }
-    public string Title => $"{ObjectId} — {ObjectName}";
+    /// <summary>"M42 — Nebulosa de Orión"; en los planetas el id ya es el nombre ("Júpiter").</summary>
+    public string Title => ObjectId == ObjectName ? ObjectId : $"{ObjectId} — {ObjectName}";
 
     /// <summary>Escala 1-5 para seeing, transparencia y valoración.</summary>
     public IReadOnlyList<int> Scale { get; } = [1, 2, 3, 4, 5];

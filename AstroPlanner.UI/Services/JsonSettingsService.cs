@@ -18,10 +18,7 @@ public sealed class JsonSettingsService : ISettingsService
 
     public JsonSettingsService(string? filePath = null)
     {
-        _filePath = filePath ?? Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "AstroPlanner",
-            "settings.json");
+        _filePath = filePath ?? AppPaths.DataFile("settings.json");
     }
 
     public ObserverSettings Load()

@@ -13,10 +13,7 @@ public sealed class FileAppLogger : IAppLogger
 
     public FileAppLogger(string? directory = null)
     {
-        _directory = directory ?? Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "AstroPlanner",
-            "logs");
+        _directory = directory ?? AppPaths.DataFile("logs");
     }
 
     public string LogLocation => _directory;
