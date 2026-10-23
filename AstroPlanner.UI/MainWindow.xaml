@@ -330,8 +330,24 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="Auto"/>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
+
+        <!-- Aviso de versión nueva (solo si la hay) -->
+        <Border Grid.Row="2" Margin="0,0,0,4" Padding="12,8" CornerRadius="6" Background="#1E3A5C"
+                BorderBrush="#55C7E8" BorderThickness="1"
+                Visibility="{Binding HasUpdate, Converter={StaticResource BooleanToVisibilityConverter}}">
+            <DockPanel>
+                <Button DockPanel.Dock="Right" Style="{StaticResource SecondaryButtonStyle}" Content="Ahora no"
+                        Command="{Binding DismissUpdateCommand}"/>
+                <TextBlock VerticalAlignment="Center" Foreground="White">
+                    <Run Text="{Binding UpdateBannerText, Mode=OneWay}"/>
+                    <Hyperlink NavigateUri="{Binding AvailableUpdate.Url}" RequestNavigate="OnUpdateLinkClicked"
+                               Foreground="#55C7E8">Descargar</Hyperlink>
+                </TextBlock>
+            </DockPanel>
+        </Border>
 
         <!-- Cabecera con resumen del observador y fecha de observación -->
         <Border Grid.Row="0" Padding="12" Background="{StaticResource NightPanelBrush}" CornerRadius="8" Margin="0,0,0,12">
@@ -417,7 +433,7 @@
             </Grid>
         </Border>
 
-        <UniformGrid Grid.Row="1" Columns="5" Margin="0,0,0,12">
+        <UniformGrid Grid.Row="1" Columns="6" Margin="0,0,0,12">
             <Border Background="{StaticResource NightCardBrush}" CornerRadius="7" Padding="14" Margin="0,0,6,0">
                 <StackPanel>
                     <TextBlock Foreground="#8FA8C8" Text="Objetos del catálogo"/>
@@ -449,6 +465,15 @@
                     <TextBlock Foreground="#8FA8C8" FontSize="12" Text="{Binding MoonDetailText}" TextTrimming="CharacterEllipsis"/>
                 </StackPanel>
             </Border>
+            <!-- Pronóstico de nubes durante la noche oscura (Open-Meteo) -->
+            <Border Background="{StaticResource NightCardBrush}" CornerRadius="7" Padding="14" Margin="6,0"
+                    ToolTip="{Binding CloudDetailText}">
+                <StackPanel>
+                    <TextBlock Foreground="#8FA8C8" Text="Nubes esta noche"/>
+                    <TextBlock Foreground="#C9D7ED" FontSize="24" FontWeight="SemiBold" Text="{Binding CloudCoverText}"/>
+                    <TextBlock Foreground="#8FA8C8" FontSize="12" Text="{Binding CloudDetailText}" TextTrimming="CharacterEllipsis"/>
+                </StackPanel>
+            </Border>
             <Border Background="{StaticResource NightCardBrush}" CornerRadius="7" Padding="14" Margin="6,0,0,0">
                 <StackPanel>
                     <TextBlock Foreground="#8FA8C8" Text="Altitud mínima"/>
@@ -460,7 +485,7 @@
         </UniformGrid>
 
         <!-- Planificador principal -->
-        <TabControl Grid.Row="2" Margin="16,12,16,16"
+        <TabControl Grid.Row="3" Margin="16,12,16,16"
                     Style="{StaticResource DarkTabControlStyle}">
             <TabItem Header="Planificador" Style="{StaticResource DarkTabItemStyle}">
             <Grid Margin="12">
@@ -720,6 +745,7 @@
                                 <TextBlock Text="{Binding VisibilityStartTimeLocal, StringFormat=Supera el umbral: {0:HH\:mm}, TargetNullValue='Supera el umbral: —'}"/>
                                 <TextBlock Text="{Binding BestObservationTimeLocal, StringFormat=Culminación: {0:HH\:mm}}"/>
                                 <TextBlock Text="{Binding SetTimeLocal, StringFormat=Puesta: {0:HH\:mm}, TargetNullValue='Puesta: —'}"/>
+                                <TextBlock Text="{Binding CloudCoverAtCulmination, StringFormat=Nubes a la culminación: {0} %, TargetNullValue='Nubes a la culminación: sin pronóstico'}"/>
                                 <StackPanel Orientation="Horizontal" Margin="0,14,0,0">
                                     <Button Style="{StaticResource PrimaryButtonStyle}" Content="Agregar al plan"
                                             Command="{Binding DataContext.AddSelectedToObservationPlanCommand, RelativeSource={RelativeSource AncestorType=Window}}"/>
@@ -795,6 +821,7 @@
                                 <DataGridTextColumn Header="Constelación" Binding="{Binding Row.Constellation}" Width="100"/>
                                 <DataGridTextColumn Header="Mag." Binding="{Binding Row.ApparentMagnitude, StringFormat=F1}" Width="50" ElementStyle="{StaticResource NumericCellStyle}"/>
                                 <DataGridTextColumn Header="Alt. máx." Binding="{Binding MaximumAltitudeDegrees, StringFormat={}{0:0}°}" Width="66" ElementStyle="{StaticResource NumericCellStyle}"/>
+                                <DataGridTextColumn Header="Nubes" Binding="{Binding CloudCoverAtCulmination, StringFormat={}{0} %, TargetNullValue='—'}" Width="58" ElementStyle="{StaticResource NumericCellStyle}"/>
                                 <DataGridTextColumn Header="Altitud" Binding="{Binding Row.AltitudeDegrees, StringFormat=F1}" Width="62" ElementStyle="{StaticResource NumericCellStyle}"/>
                                 <DataGridTextColumn Header="Luna" Binding="{Binding Row.MoonSeparationDegrees, StringFormat={}{0:0}°}" Width="52" ElementStyle="{StaticResource PlanMoonCellStyle}"/>
                                 <DataGridTextColumn Header="Estado" Binding="{Binding Row.VisibilityStatus}" Width="82" ElementStyle="{StaticResource PlanStatusCellStyle}"/>

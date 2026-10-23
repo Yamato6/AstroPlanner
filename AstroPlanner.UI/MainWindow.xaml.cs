@@ -2,6 +2,7 @@
 using System.ComponentModel;
 using System.Windows.Documents;
 using System.Windows.Input;
+using System.Windows.Navigation;
 using AstroPlanner.UI.Services;
 using AstroPlanner.UI.ViewModels;
 
@@ -51,6 +52,18 @@ public partial class MainWindow : Window
         await _viewModel.LoadCommand.ExecuteAsync(null);
         UpdateChart(_viewModel);
         UpdateSkyMap(_viewModel);
+        await _viewModel.CheckForUpdatesAsync(typeof(App).Assembly.GetName().Version ?? new Version(0, 0));
+    }
+
+    /// <summary>Abre la página de la versión nueva en el navegador (solo enlaces de GitHub).</summary>
+    private void OnUpdateLinkClicked(object sender, RequestNavigateEventArgs e)
+    {
+        if (e.Uri is { Scheme: "https", Host: "github.com" })
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(e.Uri.AbsoluteUri) { UseShellExecute = true });
+        }
+
+        e.Handled = true;
     }
 
     private void OnSettingsClicked(object sender, RoutedEventArgs e)
@@ -82,6 +95,11 @@ public partial class MainWindow : Window
             or nameof(MainViewModel.Elevation)
             or nameof(MainViewModel.TimeZoneId)
             or nameof(MainViewModel.MinimumAltitude))
+        {
+            UpdateChart(_viewModel);
+        }
+
+        if (e.PropertyName is nameof(MainViewModel.WeatherVersion))
         {
             UpdateChart(_viewModel);
         }
@@ -286,8 +304,9 @@ public partial class MainWindow : Window
 
         if (points.Count > 0)
         {
-            // Primero el fondo (crepúsculo) para que las curvas queden encima.
+            // Primero el fondo (crepúsculo y nubes) para que las curvas queden encima.
             AddTwilightBands(viewModel.Night);
+            AddCloudBands(viewModel);
 
             // Eje X con fechas reales para que el cambio de día muestre
             // correctamente 23:00, 00:00, 01:00, etc.
@@ -344,6 +363,31 @@ public partial class MainWindow : Window
         }
 
         AltitudePlot.Refresh();
+    }
+
+    /// <summary>
+    /// Nubosidad pronosticada por horas: una franja gris por hora, más opaca
+    /// cuanto más nublado. Sin pronóstico no se dibuja nada.
+    /// </summary>
+    private void AddCloudBands(MainViewModel viewModel)
+    {
+        var first = true;
+        foreach (var (start, end, cloud) in viewModel.GetNightCloudCover())
+        {
+            if (cloud < 5 || end <= start)
+            {
+                continue;
+            }
+
+            var span = AltitudePlot.Plot.Add.HorizontalSpan(start.ToOADate(), end.ToOADate());
+            span.FillStyle.Color = ScottPlot.Color.FromHex("#A9B4C2").WithAlpha(cloud / 100.0 * 0.45);
+            span.LineStyle.Width = 0;
+            if (first)
+            {
+                span.LegendText = "Nubes (pronóstico)";
+                first = false;
+            }
+        }
     }
 
     /// <summary>

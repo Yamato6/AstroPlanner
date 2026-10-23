@@ -30,6 +30,9 @@ public partial class MainViewModel : ObservableValidator, IDisposable
     private ITimer? _liveTimer;
     private bool _isApplyingLiveTime;
     private bool _isInitializing;
+    private readonly IWeatherForecastService? _weatherService;
+    private readonly IUpdateChecker? _updateChecker;
+    private bool _weatherEnabled;
 
     public MainViewModel(
         ICelestialRepository repository,
@@ -38,13 +41,18 @@ public partial class MainViewModel : ObservableValidator, IDisposable
         IAppLogger logger,
         SettingsViewModel settings,
         LogbookViewModel logbook,
-        TimeProvider? timeProvider = null)
+        TimeProvider? timeProvider = null,
+        IWeatherForecastService? weatherService = null,
+        IUpdateChecker? updateChecker = null)
     {
         _repository = repository;
         _astronomy = astronomy;
         _planService = planService;
         _logger = logger;
         _time = timeProvider ?? TimeProvider.System;
+        _weatherService = weatherService;
+        _updateChecker = updateChecker;
+        _weatherEnabled = settings.WeatherForecastEnabled;
         Settings = settings;
         Logbook = logbook;
         Logbook.Changed += RefreshObservedMarks;
@@ -513,6 +521,7 @@ public partial class MainViewModel : ObservableValidator, IDisposable
             Magnitude = _astronomy.GetApparentMagnitude(item.Object, utc),
             Planet = planet,
             MoonSeparationDegrees = moonSeparation,
+            CloudCoverAtCulmination = CloudCoverAtLocal(events.CulminationLocal),
             MoonWarning = moonInterferes
                 ? $"La Luna ({_moon!.IlluminatedFraction * 100:0} % iluminada) está a {moonSeparation:0}°: "
                   + "su brillo dificulta la observación."
@@ -745,6 +754,7 @@ public partial class MainViewModel : ObservableValidator, IDisposable
                 MinimumAltitude);
             item.CulminationLocal = events.CulminationLocal;
             item.MaximumAltitudeDegrees = events.MaximumAltitudeDegrees;
+            item.CloudCoverAtCulmination = CloudCoverAtLocal(events.CulminationLocal);
         }
 
         var ordered = ObservationPlan.OrderBy(item => item.CulminationLocal).ThenBy(item => item.Id).ToList();
@@ -790,6 +800,12 @@ public partial class MainViewModel : ObservableValidator, IDisposable
         TimeZoneId = settings.TimeZoneId;
         OnPropertyChanged(nameof(ActiveLocationName));
         // Los setters ya disparan RecalculateAndFilter.
+
+        if (_weatherEnabled != settings.WeatherForecastEnabled)
+        {
+            _weatherEnabled = settings.WeatherForecastEnabled;
+            _ = RefreshWeatherSafeAsync();
+        }
     }
 
     /// <summary>Recalcula posiciones, noche y Luna, y después vuelve a filtrar.</summary>
@@ -818,6 +834,7 @@ public partial class MainViewModel : ObservableValidator, IDisposable
 
         // La noche y la Luna no dependen del catálogo: la cabecera se rellena aunque aún no haya cargado.
         UpdateSky(observer, utc);
+        _ = RefreshWeatherSafeAsync();
         if (_allObjects.Count == 0)
         {
             return;

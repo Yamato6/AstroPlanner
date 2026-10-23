@@ -30,6 +30,15 @@ public sealed class ObserverSettings
     /// </summary>
     public double MaximumMagnitude { get; set; } = 12;
 
+    /// <summary>
+    /// Consultar el pronóstico de nubes en Open-Meteo (envía la ubicación
+    /// redondeada a ~1 km).
+    /// </summary>
+    public bool WeatherForecastEnabled { get; set; } = true;
+
+    /// <summary>Buscar una versión nueva en GitHub al iniciar.</summary>
+    public bool CheckForUpdates { get; set; } = true;
+
     public ObserverLocation ToObserverLocation() =>
         new(LatitudeDegrees, LongitudeDegrees, ElevationMeters);
 

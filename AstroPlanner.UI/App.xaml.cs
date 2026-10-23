@@ -1,9 +1,11 @@
-﻿using System.Windows;
+﻿using System.Net.Http;
+using System.Windows;
 using System.Windows.Threading;
 using Microsoft.Extensions.DependencyInjection;
 using AstroPlanner.Core.Interfaces;
 using AstroPlanner.Core.Services;
 using AstroPlanner.Data.Repositories;
+using AstroPlanner.Data.Weather;
 using AstroPlanner.UI.Services;
 using AstroPlanner.UI.ViewModels;
 
@@ -42,6 +44,18 @@ public partial class App : Application
 
         // Servicios de aplicación (Core puro)
         services.AddSingleton<IAstronomyService, AstronomyService>();
+
+        // Internet: un HttpClient compartido con tiempo límite e identificación
+        // (GitHub rechaza peticiones sin User-Agent).
+        services.AddSingleton(_ =>
+        {
+            var http = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
+            http.DefaultRequestHeaders.UserAgent.ParseAdd($"AstroPlanner/{typeof(App).Assembly.GetName().Version}");
+            return http;
+        });
+        services.AddSingleton<IWeatherForecastService>(sp =>
+            new OpenMeteoForecastService(sp.GetRequiredService<HttpClient>(), sp.GetRequiredService<TimeProvider>()));
+        services.AddSingleton<IUpdateChecker, GitHubUpdateChecker>();
 
         // Persistencia de configuración de la UI
         services.AddSingleton<ISettingsService, JsonSettingsService>();

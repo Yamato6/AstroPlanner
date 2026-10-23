@@ -10,6 +10,11 @@ una bitácora de lo observado.
 - **Noche y Luna:** puesta y salida del Sol, noche oscura (crepúsculo
   astronómico) y fase, iluminación y altura de la Luna para la fecha elegida.
   Aviso cuando a la hora elegida es de día o hay crepúsculo.
+- **Nubes:** pronóstico de nubosidad por horas (Open-Meteo): media de la noche
+  oscura y hora más despejada, franjas en el gráfico y nubes a la hora de
+  culminación en el detalle y en Mi plan. Sin internet la app sigue funcionando.
+- **Versión nueva:** al iniciar se consultan las releases de GitHub y, si hay
+  una más reciente, se muestra un aviso con enlace de descarga.
 - **Fecha y hora:** calendario, hora/minuto, ±1 h, "Ahora" (hora actual de la
   ubicación del observador) y modo **En vivo**, que sigue el reloj y actualiza
   todo cada minuto hasta que se elige otra hora a mano.
@@ -33,7 +38,8 @@ una bitácora de lo observado.
   transparencia, valoración y notas), progreso del maratón Messier (n / 110) y
   exportación a CSV.
 - **Configuración** (ventana modal): ciudad del catálogo o coordenadas manuales,
-  elevación, zona horaria, altitud mínima y magnitud máxima.
+  elevación, zona horaria, altitud mínima, magnitud máxima, y activar o no el
+  pronóstico de nubes y la búsqueda de versiones nuevas.
 
 ## Arquitectura
 
@@ -45,6 +51,7 @@ AstroPlanner.Core/    Modelos, algoritmos astronómicos, interfaces. Sin depende
   │                     CelestialObject (+ enum CelestialObjectType), City, ObjectNightEvents
   │                     SolarSystem: SunPosition, MoonPosition, MoonState, NightInfo, SkyCondition
   │                     Planets: Planet, PlanetPosition, SolarSystemCatalog (los 7 planetas)
+  │                     Weather: HourlyWeather, WeatherForecast, CloudSummary
   ├── Algorithms/       AstronomyMath (JD, GMST, LST, separación angular)
   │                     CoordinateTransformer (ecuatorial → horizontal, Math.Clamp)
   │                     Precession (J2000 → fecha, Meeus cap. 21)
@@ -54,12 +61,14 @@ AstroPlanner.Core/    Modelos, algoritmos astronómicos, interfaces. Sin depende
   │                     TimeZoneConversion (hora local → UTC, horario de verano)
   │                     ObservationNight (noche que contiene una hora, cruces de altitud)
   ├── Services/         AstronomyService (implementación de IAstronomyService)
-  └── Interfaces/       ICelestialRepository, ICityRepository, IAstronomyService
+  └── Interfaces/       ICelestialRepository, ICityRepository, IAstronomyService,
+                        IWeatherForecastService
 
 AstroPlanner.Data/    Catálogos y persistencia de datos.
   ├── Repositories/     JsonCelestialRepository (System.Text.Json + enum por string)
   │                     JsonCityRepository, SeedDataSource (recursos incrustados)
   │                     CatalogWithPlanetsRepository (añade los planetas al catálogo)
+  ├── Weather/          OpenMeteoForecastService (HttpClient, coordenadas redondeadas)
   └── SeedData/         messier_objects.json (110 objetos, coordenadas J2000)
                         cities.json (ciudades de México con zona horaria)
                         Ambos se incrustan en el ensamblado (EmbeddedResource).
@@ -70,6 +79,7 @@ AstroPlanner.UI/      WPF (.NET 8), ViewModels, vistas XAML, servicios de presen
   ├── LogEntryWindow.xaml  Ventana modal "Registrar observación"
   ├── Converters/       BooleanToTextConverter, BooleanToVisibilityConverter (con Invert)
   ├── ViewModels/       MainViewModel (planificador, filtros, modo en vivo, plan, carta)
+  │                     MainViewModel.Online.cs (pronóstico de nubes, aviso de versión)
   │                     PlanItemViewModel (fila de Mi plan: nota y culminación)
   │                     CelestialObjectObservation (datos del detalle)
   │                     CatalogSearch (búsqueda sin acentos), SkyProjection (carta polar)
@@ -80,10 +90,11 @@ AstroPlanner.UI/      WPF (.NET 8), ViewModels, vistas XAML, servicios de presen
   │                     IObservationLogService + JsonObservationLogService (logbook.json)
   │                     PlanExport (CSV), PlanPrintDocument (FlowDocument imprimible)
   │                     AtomicFile (escritura atómica), CsvBuilder (CSV con la cultura)
+  │                     IUpdateChecker + GitHubUpdateChecker (releases de GitHub)
   │                     IAppLogger + FileAppLogger (logs\astroplanner-AAAAMMDD.log)
   └── App.xaml.cs       Contenedor de DI y manejo global de errores
 
-AstroPlanner.Tests/    xUnit + FluentAssertions (135 pruebas de Core, Data y UI),
+AstroPlanner.Tests/    xUnit + FluentAssertions (156 pruebas de Core, Data y UI),
                        incluidas pruebas de referencia contra los ejemplos de Meeus.
                        net8.0-windows para poder probar ViewModels y servicios de UI.
 
@@ -158,6 +169,17 @@ AstroPlanner.Tests/    xUnit + FluentAssertions (135 pruebas de Core, Data y UI)
 - **Bitácora en `logbook.json`.** Si el archivo está dañado no se sobrescribe:
   se aparta como `logbook.corrupto-<fecha>.json` y se empieza vacía, para no
   perder observaciones al guardar la siguiente.
+- **Internet, opcional y tolerante a fallos.** Un único `HttpClient` (15 s de
+  tiempo límite, `User-Agent` propio). Ningún fallo de red llega a la interfaz
+  como error: se muestra "Sin pronóstico" o simplemente no hay aviso.
+  - *Pronóstico:* Open-Meteo, 7 días por horas en UTC. Se envían las coordenadas
+    redondeadas a 2 decimales (~1 km). Caché de 1 hora por ubicación; tras un
+    fallo no se reintenta en 5 minutos, para no consultar en cada recálculo
+    (modo en vivo, cambios de hora). Se puede desactivar en Configuración.
+  - *Versión nueva:* `GET /repos/Yamato6/AstroPlanner/releases` (incluye
+    pre-releases, ignora borradores y etiquetas que no son versión). **Con el
+    repositorio privado la API responde 404 y no se avisa de nada**; funciona
+    en cuanto el repositorio sea público.
 - **CSV con la cultura del sistema.** Separador de listas y formato numérico de
   la cultura actual y UTF-8 con BOM, para que Excel lo abra en columnas y con
   acentos sin pasos extra.
@@ -221,9 +243,7 @@ orden por culminación, notas, CSV e impresión, y carta polar del cielo.
 **0.7 (hecho):** planetas (posición, magnitud, fase, tamaño) y bitácora de
 observaciones con progreso del maratón Messier.
 
-**0.8: conectado**
-- Pronóstico de nubes por hora (Open-Meteo, sin clave); la app sigue
-  funcionando sin internet.
-- Aviso de nueva versión consultando las releases de GitHub.
+**0.8 (hecho):** pronóstico de nubes por hora (Open-Meteo) y aviso de versión
+nueva (GitHub), ambos opcionales y tolerantes a fallos.
 
 **0.9 → 1.0:** instalador (Inno Setup) y estilo Fluent de Windows 11.

@@ -62,6 +62,13 @@ public partial class SettingsViewModel : ObservableValidator
     [ObservableProperty, NotifyDataErrorInfo]
     [Range(-2, 20, ErrorMessage = "La magnitud máxima debe estar entre -2 y 20.")]
     private double maximumMagnitude = 12;
+
+    /// <summary>Consultar el pronóstico de nubes (Open-Meteo).</summary>
+    [ObservableProperty] private bool weatherForecastEnabled = true;
+
+    /// <summary>Buscar una versión nueva al iniciar.</summary>
+    [ObservableProperty] private bool checkForUpdates = true;
+
     [ObservableProperty] private City? selectedCity;
     [ObservableProperty] private bool isManualLocation;
     [ObservableProperty] private string? statusMessage;
@@ -159,7 +166,9 @@ public partial class SettingsViewModel : ObservableValidator
                 ElevationMeters = Elevation,
                 TimeZoneId = TimeZoneId,
                 MinimumAltitude = MinimumAltitude,
-                MaximumMagnitude = MaximumMagnitude
+                MaximumMagnitude = MaximumMagnitude,
+                WeatherForecastEnabled = WeatherForecastEnabled,
+                CheckForUpdates = CheckForUpdates
             };
 
             _settingsService.Save(settings);
@@ -203,6 +212,8 @@ public partial class SettingsViewModel : ObservableValidator
         TimeZoneId = settings.TimeZoneId;
         MinimumAltitude = settings.MinimumAltitude;
         MaximumMagnitude = settings.MaximumMagnitude;
+        WeatherForecastEnabled = settings.WeatherForecastEnabled;
+        CheckForUpdates = settings.CheckForUpdates;
         // Si el catálogo de ciudades ya está cargado se recupera la ciudad guardada;
         // si no, LoadCitiesAsync la seleccionará al cargarlo.
         SelectedCity = settings.IsManualLocation

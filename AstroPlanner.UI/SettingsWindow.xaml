@@ -94,6 +94,15 @@
                         Command="{Binding UseManualLocationCommand}"/>
             </Grid>
 
+            <!-- Funciones que usan internet: se pueden desactivar -->
+            <TextBlock Margin="0,22,0,6" FontSize="15" FontWeight="SemiBold" Text="Conexión a internet"/>
+            <CheckBox Foreground="#D7E3F4" Margin="0,4" IsChecked="{Binding WeatherForecastEnabled}"
+                      Content="Pronóstico de nubes (Open-Meteo)"/>
+            <TextBlock Margin="22,0,0,6" Foreground="#8FA8C8" TextWrapping="Wrap" FontSize="12"
+                       Text="Envía tu ubicación aproximada (redondeada a ~1 km) a open-meteo.com para obtener la nubosidad por horas."/>
+            <CheckBox Foreground="#D7E3F4" Margin="0,4" IsChecked="{Binding CheckForUpdates}"
+                      Content="Buscar una versión nueva al iniciar (GitHub)"/>
+
             <TextBlock Margin="0,16,0,0" TextWrapping="Wrap" Foreground="#FFB3A7">
                 <TextBlock.Style>
                     <Style TargetType="TextBlock">

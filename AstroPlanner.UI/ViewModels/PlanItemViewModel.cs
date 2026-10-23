@@ -29,5 +29,8 @@ public sealed partial class PlanItemViewModel : ObservableObject
 
     [ObservableProperty] private double maximumAltitudeDegrees;
 
+    /// <summary>Nubosidad pronosticada (%) a la hora de culminación; null sin pronóstico.</summary>
+    [ObservableProperty] private int? cloudCoverAtCulmination;
+
     partial void OnNoteChanged(string value) => _onNoteChanged(this);
 }

@@ -24,6 +24,9 @@ public sealed class CelestialObjectObservation
 
     public bool IsPlanet => Planet is not null;
 
+    /// <summary>Nubosidad pronosticada (%) a la hora de culminación; null sin pronóstico.</summary>
+    public int? CloudCoverAtCulmination { get; init; }
+
     /// <summary>Distancia angular a la Luna en el instante elegido (grados).</summary>
     public double? MoonSeparationDegrees { get; init; }
 
