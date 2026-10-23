@@ -29,7 +29,8 @@ public sealed class ViewModelTests
             new AstronomyService(),
             _planService,
             new NullLogger(),
-            CreateSettings());
+            CreateSettings(),
+            new LogbookViewModel(new FakeLogService(), new NullLogger()));
         // Noche de invierno en CDMX: M42 alta, M13 bajo el horizonte.
         viewModel.ObservationDateTime = new DateTime(2026, 1, 15, 22, 0, 0);
         await viewModel.LoadCommand.ExecuteAsync(null);

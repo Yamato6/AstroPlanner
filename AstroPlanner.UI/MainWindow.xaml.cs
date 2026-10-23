@@ -109,6 +109,34 @@ public partial class MainWindow : Window
         }
     }
 
+    private void OnLogObservationClicked(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel?.CreateLogDraftForSelected() is not { } draft) return;
+
+        var window = new LogEntryWindow(draft) { Owner = this };
+        if (window.ShowDialog() == true)
+        {
+            _viewModel.Logbook.Add(draft);
+        }
+    }
+
+    private void OnExportLogbookClicked(object sender, RoutedEventArgs e)
+    {
+        if (_viewModel is null || _viewModel.Logbook.Entries.Count == 0) return;
+
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "Exportar bitácora",
+            Filter = "CSV (*.csv)|*.csv",
+            FileName = $"AstroPlanner-bitacora-{DateTime.Now:yyyy-MM-dd}.csv"
+        };
+
+        if (dialog.ShowDialog(this) == true)
+        {
+            _viewModel.Logbook.Export(dialog.FileName);
+        }
+    }
+
     private void OnPrintPlanClicked(object sender, RoutedEventArgs e)
     {
         if (_viewModel is null || _viewModel.ObservationPlan.Count == 0) return;
@@ -185,12 +213,34 @@ public partial class MainWindow : Window
             text.LabelAlignment = ScottPlot.Alignment.MiddleCenter;
         }
 
-        foreach (var point in viewModel.GetSkyMapPoints().OrderBy(p => p.IsInPlan || p.IsSelected))
+        // La Luna va primero (debajo): su disco no debe tapar los objetos que tenga cerca.
+        if (viewModel.Moon is { IsAboveHorizon: true } moon)
+        {
+            var (x, y) = SkyProjection.ToXY(moon.Horizontal.AltitudeDegrees, moon.Horizontal.AzimuthDegrees);
+            plot.Add.Marker(x, y, ScottPlot.MarkerShape.FilledCircle, 22, ScottPlot.Color.FromHex("#E8E3C8").WithAlpha(0.85));
+            var label = plot.Add.Text($"Luna {viewModel.MoonIlluminationText}", x, y - 6);
+            label.LabelFontColor = ScottPlot.Color.FromHex("#E8E3C8");
+            label.LabelFontSize = 12;
+            label.LabelAlignment = ScottPlot.Alignment.UpperCenter;
+        }
+
+        foreach (var point in viewModel.GetSkyMapPoints().OrderBy(p => p.IsInPlan || p.IsSelected || p.IsPlanet))
         {
             var (x, y) = point.Position;
-            var color = point.IsInPlan ? "#FFB45E" : point.IsVisible ? "#55C7E8" : "#5D7392";
-            var size = (float)Math.Clamp(13 - point.Magnitude, 4, 10);
-            plot.Add.Marker(x, y, ScottPlot.MarkerShape.FilledCircle, size, ScottPlot.Color.FromHex(color));
+            float size;
+            if (point.IsPlanet)
+            {
+                // Planetas: rombo dorado (naranja si están en Mi plan), con su nombre.
+                size = 13;
+                plot.Add.Marker(x, y, ScottPlot.MarkerShape.FilledDiamond, size,
+                    ScottPlot.Color.FromHex(point.IsInPlan ? "#FFB45E" : "#F5C26B"));
+            }
+            else
+            {
+                var color = point.IsInPlan ? "#FFB45E" : point.IsVisible ? "#55C7E8" : "#5D7392";
+                size = (float)Math.Clamp(13 - point.Magnitude, 4, 10);
+                plot.Add.Marker(x, y, ScottPlot.MarkerShape.FilledCircle, size, ScottPlot.Color.FromHex(color));
+            }
 
             if (point.IsSelected)
             {
@@ -198,18 +248,9 @@ public partial class MainWindow : Window
             }
 
             var label = plot.Add.Text(point.Id, x + 2.5, y);
-            label.LabelFontColor = ScottPlot.Color.FromHex(point.IsInPlan || point.IsSelected ? "#EAF2FF" : "#7F93B0");
-            label.LabelFontSize = point.IsInPlan || point.IsSelected ? 12 : 10;
-            label.LabelAlignment = ScottPlot.Alignment.MiddleLeft;
-        }
-
-        if (viewModel.Moon is { IsAboveHorizon: true } moon)
-        {
-            var (x, y) = SkyProjection.ToXY(moon.Horizontal.AltitudeDegrees, moon.Horizontal.AzimuthDegrees);
-            plot.Add.Marker(x, y, ScottPlot.MarkerShape.FilledCircle, 22, ScottPlot.Color.FromHex("#E8E3C8"));
-            var label = plot.Add.Text($"Luna {viewModel.MoonIlluminationText}", x + 5, y);
-            label.LabelFontColor = ScottPlot.Color.FromHex("#E8E3C8");
-            label.LabelFontSize = 12;
+            var highlighted = point.IsInPlan || point.IsSelected || point.IsPlanet;
+            label.LabelFontColor = ScottPlot.Color.FromHex(point.IsPlanet ? "#F5C26B" : highlighted ? "#EAF2FF" : "#7F93B0");
+            label.LabelFontSize = highlighted ? 12 : 10;
             label.LabelAlignment = ScottPlot.Alignment.MiddleLeft;
         }
 

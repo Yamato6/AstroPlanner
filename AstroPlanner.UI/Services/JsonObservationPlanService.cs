@@ -76,19 +76,6 @@ public sealed class JsonObservationPlanService : IObservationPlanService
     public void Save(IEnumerable<ObservationPlanEntry> entries)
     {
         ArgumentNullException.ThrowIfNull(entries);
-
-        var directory = Path.GetDirectoryName(_filePath);
-        if (!string.IsNullOrEmpty(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        var json = JsonSerializer.Serialize(entries.ToList(), Options);
-        var tempFile = _filePath + ".tmp";
-        File.WriteAllText(tempFile, json);
-
-        // Escritura atómica: evita dejar el archivo corrupto si la app se cierra
-        // a mitad de la operación.
-        File.Move(tempFile, _filePath, overwrite: true);
+        AtomicFile.WriteAllText(_filePath, JsonSerializer.Serialize(entries.ToList(), Options));
     }
 }

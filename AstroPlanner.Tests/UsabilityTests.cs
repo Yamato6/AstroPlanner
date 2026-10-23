@@ -26,6 +26,7 @@ public sealed class UsabilityTests
         _planService,
         new NullLogger(),
         new SettingsViewModel(_settingsService, new FakeCityRepository(), new NullLogger()),
+        new LogbookViewModel(new FakeLogService(), new NullLogger()),
         time);
 
     private async Task<MainViewModel> CreateLoadedMainAsync()

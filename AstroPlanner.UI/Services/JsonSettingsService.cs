@@ -50,19 +50,6 @@ public sealed class JsonSettingsService : ISettingsService
     public void Save(ObserverSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
-
-        var directory = Path.GetDirectoryName(_filePath);
-        if (!string.IsNullOrEmpty(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        var json = JsonSerializer.Serialize(settings, Options);
-        var tempFile = _filePath + ".tmp";
-        File.WriteAllText(tempFile, json);
-
-        // Escritura atómica: evita dejar el archivo corrupto si la app se cierra
-        // a mitad de la operación.
-        File.Move(tempFile, _filePath, overwrite: true);
+        AtomicFile.WriteAllText(_filePath, JsonSerializer.Serialize(settings, Options));
     }
 }

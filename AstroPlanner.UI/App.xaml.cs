@@ -35,7 +35,9 @@ public partial class App : Application
         services.AddSingleton<IAppLogger, FileAppLogger>();
 
         // Datos
-        services.AddSingleton<ICelestialRepository, JsonCelestialRepository>();
+        // Catálogo Messier + planetas
+        services.AddSingleton<ICelestialRepository>(
+            new CatalogWithPlanetsRepository(new JsonCelestialRepository()));
         services.AddSingleton<ICityRepository, JsonCityRepository>();
 
         // Servicios de aplicación (Core puro)
@@ -44,9 +46,11 @@ public partial class App : Application
         // Persistencia de configuración de la UI
         services.AddSingleton<ISettingsService, JsonSettingsService>();
         services.AddSingleton<IObservationPlanService, JsonObservationPlanService>();
+        services.AddSingleton<IObservationLogService>(_ => new JsonObservationLogService());
 
         // ViewModels
         services.AddSingleton<SettingsViewModel>();
+        services.AddSingleton<LogbookViewModel>();
         services.AddSingleton<MainViewModel>();
 
         // Vistas

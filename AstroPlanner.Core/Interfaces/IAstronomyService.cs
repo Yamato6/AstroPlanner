@@ -58,6 +58,15 @@ public interface IAstronomyService
         TimeZoneInfo zonaHoraria,
         double altitudMinimaDegrees);
 
+    /// <summary>
+    /// Posición, distancia, fase, magnitud y tamaño aparente de un planeta;
+    /// null si <paramref name="objeto"/> no es un planeta.
+    /// </summary>
+    PlanetPosition? GetPlanetPosition(CelestialObject objeto, DateTime utcDateTime);
+
+    /// <summary>Magnitud aparente: la calculada para un planeta, la del catálogo para el resto.</summary>
+    double GetApparentMagnitude(CelestialObject objeto, DateTime utcDateTime);
+
     /// <summary>Altitud geométrica del centro del Sol (grados).</summary>
     double GetSunAltitudeDegrees(ObserverLocation observador, DateTime utcDateTime);
 

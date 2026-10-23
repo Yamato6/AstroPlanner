@@ -1,4 +1,4 @@
-using System.Collections.ObjectModel;
+﻿using System.Collections.ObjectModel;
 using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.IO;
@@ -37,6 +37,7 @@ public partial class MainViewModel : ObservableValidator, IDisposable
         IObservationPlanService planService,
         IAppLogger logger,
         SettingsViewModel settings,
+        LogbookViewModel logbook,
         TimeProvider? timeProvider = null)
     {
         _repository = repository;
@@ -45,6 +46,8 @@ public partial class MainViewModel : ObservableValidator, IDisposable
         _logger = logger;
         _time = timeProvider ?? TimeProvider.System;
         Settings = settings;
+        Logbook = logbook;
+        Logbook.Changed += RefreshObservedMarks;
 
         // La configuración persistida manda sobre los valores en runtime. Se
         // asigna todo antes de calcular: con valores a medias (p. ej. la fecha
@@ -67,6 +70,29 @@ public partial class MainViewModel : ObservableValidator, IDisposable
     /// <summary>Pestaña de Configuración, compartida con la vista.</summary>
     public SettingsViewModel Settings { get; }
 
+    /// <summary>Bitácora de observaciones, compartida con la vista.</summary>
+    public LogbookViewModel Logbook { get; }
+
+    /// <summary>Resumen del maratón Messier para la cabecera.</summary>
+    public string ObservedSummaryText => $"Messier observados: {Logbook.MessierProgressText}";
+
+    /// <summary>Marca como observados los objetos con alguna entrada en la bitácora.</summary>
+    private void RefreshObservedMarks()
+    {
+        foreach (var item in _allObjects)
+        {
+            item.IsObserved = Logbook.HasBeenObserved(item.Id);
+        }
+
+        OnPropertyChanged(nameof(ObservedSummaryText));
+    }
+
+    /// <summary>Borrador de bitácora para el objeto seleccionado a la hora elegida.</summary>
+    public LogEntryDraftViewModel? CreateLogDraftForSelected() =>
+        SelectedObject is null
+            ? null
+            : Logbook.CreateDraft(SelectedObject.Id, SelectedObject.CommonName, ObservationDateTime, ActiveLocationName);
+
     public ObservableCollection<CelestialObjectRowViewModel> Objects { get; } = [];
 
     /// <summary>Mi plan, ordenado por hora de culminación (orden de observación).</summary>
@@ -81,7 +107,8 @@ public partial class MainViewModel : ObservableValidator, IDisposable
         nameof(CelestialObjectType.PlanetaryNebula),
         nameof(CelestialObjectType.DiffuseNebula),
         nameof(CelestialObjectType.SupernovaRemnant),
-        nameof(CelestialObjectType.Unknown)
+        nameof(CelestialObjectType.Unknown),
+        nameof(CelestialObjectType.Planet)
     ];
 
     /// <summary>Constelaciones presentes en el catálogo ("" = todas).</summary>
@@ -469,7 +496,9 @@ public partial class MainViewModel : ObservableValidator, IDisposable
         var utc = ToUtc(ObservationDateTime);
         var current = _astronomy.GetHorizontal(item.Object, observer, utc);
         double? moonSeparation = _moon is null ? null : _astronomy.GetMoonSeparationDegrees(item.Object, _moon, utc);
-        var moonInterferes = _moon is not null && moonSeparation is not null && MoonInterferes(_moon, moonSeparation.Value);
+        var moonInterferes = !item.IsPlanet
+            && _moon is not null && moonSeparation is not null && MoonInterferes(_moon, moonSeparation.Value);
+        var planet = _astronomy.GetPlanetPosition(item.Object, utc);
 
         return new CelestialObjectObservation
         {
@@ -481,6 +510,8 @@ public partial class MainViewModel : ObservableValidator, IDisposable
             BestObservationTimeLocal = events.CulminationLocal,
             SetTimeLocal = events.SetLocal,
             MaximumAltitudeDegrees = events.MaximumAltitudeDegrees,
+            Magnitude = _astronomy.GetApparentMagnitude(item.Object, utc),
+            Planet = planet,
             MoonSeparationDegrees = moonSeparation,
             MoonWarning = moonInterferes
                 ? $"La Luna ({_moon!.IlluminatedFraction * 100:0} % iluminada) está a {moonSeparation:0}°: "
@@ -512,7 +543,8 @@ public partial class MainViewModel : ObservableValidator, IDisposable
                 item.ApparentMagnitude,
                 item.IsVisible,
                 planIds.Contains(item.Id),
-                ReferenceEquals(item, SelectedObject)))
+                ReferenceEquals(item, SelectedObject),
+                item.IsPlanet))
             .ToList();
     }
 
@@ -558,6 +590,7 @@ public partial class MainViewModel : ObservableValidator, IDisposable
                 [.. _allObjects.Select(o => o.Constellation).Distinct().OrderBy(c => c)];
 
             RestoreObservationPlan();
+            RefreshObservedMarks();
             RecalculateAndFilter();
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or JsonException)
@@ -798,7 +831,9 @@ public partial class MainViewModel : ObservableValidator, IDisposable
                 _astronomy.GetHorizontal(item.Object, observer, utc),
                 MinimumAltitude,
                 separation,
-                MoonInterferes(moon, separation));
+                // Los planetas son lo bastante brillantes para que la Luna no los oculte.
+                !item.IsPlanet && MoonInterferes(moon, separation),
+                _astronomy.GetApparentMagnitude(item.Object, utc));
         }
 
         OnPropertyChanged(nameof(VisibleObjectsCount));
@@ -858,15 +893,25 @@ public partial class CelestialObjectRowViewModel : ObservableObject
 {
     private readonly CelestialObject _item;
 
-    public CelestialObjectRowViewModel(CelestialObject item) => _item = item;
+    public CelestialObjectRowViewModel(CelestialObject item)
+    {
+        _item = item;
+        apparentMagnitude = item.ApparentMagnitude;
+    }
 
     public string Id => _item.Id;
     public string CommonName => _item.CommonName;
     public string Constellation => _item.Constellation;
     public CelestialObjectType Type => _item.Type;
-    public double ApparentMagnitude => _item.ApparentMagnitude;
     public EquatorialCoordinates Coordinates => _item.Coordinates;
     public CelestialObject Object => _item;
+    public bool IsPlanet => _item.IsPlanet;
+
+    /// <summary>Magnitud aparente: fija para el cielo profundo; en los planetas cambia con la fecha.</summary>
+    [ObservableProperty] private double apparentMagnitude;
+
+    /// <summary>True si hay alguna observación del objeto en la bitácora.</summary>
+    [ObservableProperty] private bool isObserved;
 
     [ObservableProperty] private double altitudeDegrees;
     [ObservableProperty] private double azimuthDegrees;
@@ -886,12 +931,14 @@ public partial class CelestialObjectRowViewModel : ObservableObject
         HorizontalCoordinates coordinates,
         double threshold,
         double moonSeparation,
-        bool moonInterferes)
+        bool moonInterferes,
+        double apparentMagnitude)
     {
         AltitudeDegrees = coordinates.AltitudeDegrees;
         AzimuthDegrees = coordinates.AzimuthDegrees;
         IsVisible = AltitudeDegrees >= threshold;
         MoonSeparationDegrees = moonSeparation;
         MoonInterferes = moonInterferes;
+        ApparentMagnitude = apparentMagnitude;
     }
 }

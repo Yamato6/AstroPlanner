@@ -26,7 +26,8 @@ public sealed record SkyMapPoint(
     double Magnitude,
     bool IsVisible,
     bool IsInPlan,
-    bool IsSelected)
+    bool IsSelected,
+    bool IsPlanet = false)
 {
     public (double X, double Y) Position => SkyProjection.ToXY(AltitudeDegrees, AzimuthDegrees);
 }

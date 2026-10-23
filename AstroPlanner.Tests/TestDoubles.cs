@@ -58,6 +58,28 @@ internal sealed class FakePlanService : IObservationPlanService
     public void Save(IEnumerable<ObservationPlanEntry> entries) => Entries = entries.ToList();
 }
 
+internal sealed class FakeLogService : IObservationLogService
+{
+    public List<ObservationLogEntry> Entries { get; set; } = [];
+
+    public int SaveCount { get; private set; }
+
+    public bool FailOnSave { get; set; }
+
+    public IReadOnlyList<ObservationLogEntry> Load() => Entries;
+
+    public void Save(IEnumerable<ObservationLogEntry> entries)
+    {
+        if (FailOnSave)
+        {
+            throw new IOException("disco lleno");
+        }
+
+        Entries = entries.ToList();
+        SaveCount++;
+    }
+}
+
 internal sealed class NullLogger : IAppLogger
 {
     public string LogLocation => "";

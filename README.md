@@ -1,8 +1,9 @@
-# AstroPlanner
+﻿# AstroPlanner
 
 Planificador de observaciones astronómicas para Windows (WPF, .NET 8). Dada una
-ubicación, fecha y hora, calcula qué objetos del catálogo Messier son visibles y
-su trayectoria de altitud/azimut a lo largo de la noche.
+ubicación, fecha y hora, calcula qué objetos del catálogo Messier y qué planetas
+son visibles y su trayectoria de altitud/azimut a lo largo de la noche, y lleva
+una bitácora de lo observado.
 
 ## Funcionalidad
 
@@ -12,20 +13,25 @@ su trayectoria de altitud/azimut a lo largo de la noche.
 - **Fecha y hora:** calendario, hora/minuto, ±1 h, "Ahora" (hora actual de la
   ubicación del observador) y modo **En vivo**, que sigue el reloj y actualiza
   todo cada minuto hasta que se elige otra hora a mano.
-- **Planificador:** tabla con los 110 objetos Messier (altitud, azimut,
-  distancia a la Luna, estado de visibilidad), búsqueda por id, nombre o
+- **Planificador:** tabla con los 110 objetos Messier y los 7 planetas (altitud,
+  azimut, distancia a la Luna, estado de visibilidad, ✓ si ya se observó), búsqueda por id, nombre o
   constelación (sin distinguir acentos), filtros por tipo, constelación,
   magnitud máxima y "solo visibles", y gráfico de altitud de la puesta a la
   salida del Sol con el crepúsculo sombreado, la curva de la Luna y la hora elegida.
 - **Cielo:** carta polar del cielo a la hora elegida (cénit en el centro, norte
   arriba, este a la izquierda) con los objetos sobre el horizonte, Mi plan, la
-  Luna y el círculo de altitud mínima; clic en un objeto para seleccionarlo.
+  Luna, los planetas y el círculo de altitud mínima; clic en un objeto para seleccionarlo.
 - **Detalle del objeto:** hora de salida, inicio de visibilidad (cruce del umbral
   de altitud), mejor momento de observación, ocaso, altitud máxima, distancia a
-  la Luna y aviso si su brillo dificulta la observación.
+  la Luna y aviso si su brillo dificulta la observación. En los planetas,
+  además: distancia, tamaño aparente, fase y distancia al Sol en el cielo.
+  Botón "Registrar observación…" para anotarlo en la bitácora.
 - **Mi plan:** objetos añadidos desde el detalle, ordenados por hora de
   culminación (el orden en que conviene observar), con notas por objeto;
   exportar a CSV e imprimir. Se guarda entre sesiones.
+- **Bitácora:** observaciones registradas (fecha, lugar, equipo, seeing,
+  transparencia, valoración y notas), progreso del maratón Messier (n / 110) y
+  exportación a CSV.
 - **Configuración** (ventana modal): ciudad del catálogo o coordenadas manuales,
   elevación, zona horaria, altitud mínima y magnitud máxima.
 
@@ -38,11 +44,13 @@ AstroPlanner.Core/    Modelos, algoritmos astronómicos, interfaces. Sin depende
   ├── Models/           EquatorialCoordinates, HorizontalCoordinates, ObserverLocation,
   │                     CelestialObject (+ enum CelestialObjectType), City, ObjectNightEvents
   │                     SolarSystem: SunPosition, MoonPosition, MoonState, NightInfo, SkyCondition
+  │                     Planets: Planet, PlanetPosition, SolarSystemCatalog (los 7 planetas)
   ├── Algorithms/       AstronomyMath (JD, GMST, LST, separación angular)
   │                     CoordinateTransformer (ecuatorial → horizontal, Math.Clamp)
   │                     Precession (J2000 → fecha, Meeus cap. 21)
   │                     Refraction (Saemundsson, Meeus cap. 16)
   │                     SolarSystemCalculator (Sol, Luna, fase lunar)
+  │                     PlanetCalculator (elementos de JPL, Kepler, magnitud y fase de Meeus)
   │                     TimeZoneConversion (hora local → UTC, horario de verano)
   │                     ObservationNight (noche que contiene una hora, cruces de altitud)
   ├── Services/         AstronomyService (implementación de IAstronomyService)
@@ -51,25 +59,31 @@ AstroPlanner.Core/    Modelos, algoritmos astronómicos, interfaces. Sin depende
 AstroPlanner.Data/    Catálogos y persistencia de datos.
   ├── Repositories/     JsonCelestialRepository (System.Text.Json + enum por string)
   │                     JsonCityRepository, SeedDataSource (recursos incrustados)
+  │                     CatalogWithPlanetsRepository (añade los planetas al catálogo)
   └── SeedData/         messier_objects.json (110 objetos, coordenadas J2000)
                         cities.json (ciudades de México con zona horaria)
                         Ambos se incrustan en el ensamblado (EmbeddedResource).
 
 AstroPlanner.UI/      WPF (.NET 8), ViewModels, vistas XAML, servicios de presentación.
-  ├── MainWindow.xaml   Pestañas Planificador / Cielo / Detalle del objeto / Mi plan
+  ├── MainWindow.xaml   Pestañas Planificador / Cielo / Detalle del objeto / Mi plan / Bitácora
   ├── SettingsWindow.xaml  Ventana modal de configuración
+  ├── LogEntryWindow.xaml  Ventana modal "Registrar observación"
+  ├── Converters/       BooleanToTextConverter, BooleanToVisibilityConverter (con Invert)
   ├── ViewModels/       MainViewModel (planificador, filtros, modo en vivo, plan, carta)
   │                     PlanItemViewModel (fila de Mi plan: nota y culminación)
   │                     CelestialObjectObservation (datos del detalle)
   │                     CatalogSearch (búsqueda sin acentos), SkyProjection (carta polar)
   │                     SettingsViewModel (configuración persistida, ciudades)
+  │                     LogbookViewModel + LogEntryDraftViewModel (bitácora)
   ├── Services/         ISettingsService + JsonSettingsService (settings.json)
   │                     IObservationPlanService + JsonObservationPlanService (plan.json)
+  │                     IObservationLogService + JsonObservationLogService (logbook.json)
   │                     PlanExport (CSV), PlanPrintDocument (FlowDocument imprimible)
+  │                     AtomicFile (escritura atómica), CsvBuilder (CSV con la cultura)
   │                     IAppLogger + FileAppLogger (logs\astroplanner-AAAAMMDD.log)
   └── App.xaml.cs       Contenedor de DI y manejo global de errores
 
-AstroPlanner.Tests/    xUnit + FluentAssertions (112 pruebas de Core, Data y UI),
+AstroPlanner.Tests/    xUnit + FluentAssertions (135 pruebas de Core, Data y UI),
                        incluidas pruebas de referencia contra los ejemplos de Meeus.
                        net8.0-windows para poder probar ViewModels y servicios de UI.
 
@@ -133,6 +147,17 @@ AstroPlanner.Tests/    xUnit + FluentAssertions (112 pruebas de Core, Data y UI)
   (en la app, `TimeProvider.System`) para la hora actual y el temporizador; las
   pruebas usan un reloj manual. El temporizador dispara en otro hilo y el cambio
   se aplica en el de la interfaz mediante el `SynchronizationContext` capturado.
+- **Planetas.** Elementos orbitales keplerianos de JPL ("Approximate Positions
+  of the Planets", tabla 1, 1800-2050) con corrección por tiempo de luz; error
+  ~1' en los planetas interiores y hasta ~10' en Júpiter/Saturno. Magnitud con
+  las fórmulas del Astronomical Almanac (Meeus 41), incluida la inclinación de
+  los anillos de Saturno (Meeus 45). Son `CelestialObject` de tipo `Planet` con
+  `Planet` asignado; `AstronomyService` calcula su posición y magnitud para cada
+  instante en lugar de aplicar la precesión. No se marca interferencia de la Luna
+  en los planetas: son lo bastante brillantes.
+- **Bitácora en `logbook.json`.** Si el archivo está dañado no se sobrescribe:
+  se aparta como `logbook.corrupto-<fecha>.json` y se empieza vacía, para no
+  perder observaciones al guardar la siguiente.
 - **CSV con la cultura del sistema.** Separador de listas y formato numérico de
   la cultura actual y UTF-8 con BOM, para que Excel lo abra en columnas y con
   acentos sin pasos extra.
@@ -193,5 +218,12 @@ objeto), precesión, refracción y pruebas de referencia.
 **0.6 (hecho):** búsqueda y filtro de magnitud, modo en vivo, Mi plan con
 orden por culminación, notas, CSV e impresión, y carta polar del cielo.
 
-**0.7 y siguientes:** bitácora de observaciones, pronóstico de nubes
-(Open-Meteo), planetas, instalador con aviso de nueva versión, estilo Fluent.
+**0.7 (hecho):** planetas (posición, magnitud, fase, tamaño) y bitácora de
+observaciones con progreso del maratón Messier.
+
+**0.8: conectado**
+- Pronóstico de nubes por hora (Open-Meteo, sin clave); la app sigue
+  funcionando sin internet.
+- Aviso de nueva versión consultando las releases de GitHub.
+
+**0.9 → 1.0:** instalador (Inno Setup) y estilo Fluent de Windows 11.

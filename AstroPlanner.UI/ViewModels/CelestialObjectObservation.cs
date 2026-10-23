@@ -16,6 +16,14 @@ public sealed class CelestialObjectObservation
     public DateTime? SetTimeLocal { get; init; }
     public double MaximumAltitudeDegrees { get; init; }
 
+    /// <summary>Magnitud aparente en el instante elegido (en los planetas cambia con la fecha).</summary>
+    public double Magnitude { get; init; }
+
+    /// <summary>Distancia, fase y tamaño aparente si el objeto es un planeta; null si no.</summary>
+    public PlanetPosition? Planet { get; init; }
+
+    public bool IsPlanet => Planet is not null;
+
     /// <summary>Distancia angular a la Luna en el instante elegido (grados).</summary>
     public double? MoonSeparationDegrees { get; init; }
 

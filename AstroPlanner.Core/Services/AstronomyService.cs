@@ -31,11 +31,29 @@ public sealed class AstronomyService : IAstronomyService
         ArgumentNullException.ThrowIfNull(objeto);
         ArgumentNullException.ThrowIfNull(observador);
 
-        // Catálogo J2000 → coordenadas de la fecha → horizonte → altitud aparente.
-        var ofDate = Precession.FromJ2000(objeto.Coordinates, utcDateTime);
+        // Coordenadas de la fecha → horizonte → altitud aparente.
+        var ofDate = EquatorialOfDate(objeto, utcDateTime);
         var geometric = CoordinateTransformer.ToHorizontal(ofDate, observador, utcDateTime);
         return geometric with { AltitudeDegrees = Refraction.ApparentAltitude(geometric.AltitudeDegrees) };
     }
+
+    /// <summary>
+    /// Coordenadas ecuatoriales del equinoccio de la fecha: los planetas se
+    /// calculan para ese instante; el resto, por precesión desde el catálogo J2000.
+    /// </summary>
+    private static EquatorialCoordinates EquatorialOfDate(CelestialObject objeto, DateTime utcDateTime) =>
+        objeto.Planet is { } planet
+            ? PlanetCalculator.GetPosition(planet, utcDateTime).Equatorial
+            : Precession.FromJ2000(objeto.Coordinates, utcDateTime);
+
+    public PlanetPosition? GetPlanetPosition(CelestialObject objeto, DateTime utcDateTime)
+    {
+        ArgumentNullException.ThrowIfNull(objeto);
+        return objeto.Planet is { } planet ? PlanetCalculator.GetPosition(planet, utcDateTime) : null;
+    }
+
+    public double GetApparentMagnitude(CelestialObject objeto, DateTime utcDateTime) =>
+        GetPlanetPosition(objeto, utcDateTime)?.Magnitude ?? objeto.ApparentMagnitude;
 
     public IEnumerable<(DateTime Time, double AltitudeDegrees)> GetAltitudeSeries(
         CelestialObject objeto,
@@ -167,9 +185,7 @@ public sealed class AstronomyService : IAstronomyService
         ArgumentNullException.ThrowIfNull(luna);
 
         // Ambas en coordenadas de la fecha para que sean comparables.
-        return AstronomyMath.AngularSeparationDegrees(
-            Precession.FromJ2000(objeto.Coordinates, utcDateTime),
-            luna.Equatorial);
+        return AstronomyMath.AngularSeparationDegrees(EquatorialOfDate(objeto, utcDateTime), luna.Equatorial);
     }
 
     public IReadOnlyList<(DateTime LocalTime, double AltitudeDegrees)> GetMoonAltitudeSeries(
