@@ -3,7 +3,7 @@
 Todas las versiones de AstroPlanner. Las descargas están en
 [Releases](https://github.com/Yamato6/AstroPlanner/releases).
 
-## [1.0.0] - 2026-10
+## [1.0.0] - 2026-10-23
 
 Primera versión estable. Pule lo existente en lugar de añadir funciones nuevas.
 
